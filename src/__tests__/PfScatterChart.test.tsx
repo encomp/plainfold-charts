@@ -209,7 +209,7 @@ describe('PfScatterChart', () => {
   it('lets the wrapper shrink in flex/grid parents', () => {
     const { container } = setup()
     const wrap = container.firstElementChild as HTMLElement
-    expect(wrap.style.minWidth).toBe('0px')
+    expect(wrap.style.minWidth).toMatch(/^0(px)?$/)
     expect(wrap.style.overflow).toBe('hidden')
   })
 
