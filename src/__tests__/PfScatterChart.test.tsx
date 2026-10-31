@@ -210,7 +210,17 @@ describe('PfScatterChart', () => {
     const { container } = setup()
     const wrap = container.firstElementChild as HTMLElement
     expect(wrap.style.minWidth).toMatch(/^0(px)?$/)
-    expect(wrap.style.overflow).toBe('hidden')
+    expect(wrap.style.overflow).not.toBe('hidden')
+  })
+
+  it('places the tooltip at the clamped marker for an out-of-range point', () => {
+    setup({ xAxis: { label: 'X', min: 150, max: 250 }, renderTooltip: (p) => <span>Tip {p.id}</span> })
+    const a = screen.getByRole('button', { name: /^a/ })
+    fireEvent.mouseEnter(a)
+    const tip = screen.getByRole('tooltip')
+    const m = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(a.getAttribute('transform')!)!
+    expect(parseFloat(tip.style.left)).toBeCloseTo((Number(m[1]) / 600) * 100, 3)
+    expect(parseFloat(tip.style.top)).toBeCloseTo((Number(m[2]) / 320) * 100, 3)
   })
 
   describe('width measuring', () => {
