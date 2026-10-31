@@ -63,6 +63,7 @@ const M = { top: 16, right: 20, bottom: 44, left: 56 }
 const R_DEFAULT = 6
 const R_MIN = 4
 const R_MAX = 16
+// shortcut: flip threshold assumes a tooltip under ~48px tall, upgrade by measuring the tooltip
 const TIP_FLIP_Y = 48
 const TICKS = 5
 
@@ -187,6 +188,7 @@ export function PfScatterChart<T>({
   }
   const select = (id: string) => onSelect?.(id)
   const hoveredPoint = hovered === null ? null : placed.find((d) => getId(d.p) === hovered)
+  const gap = (hoveredPoint?.r ?? 0) + 6 // tooltip offset from the marker edge
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', width: '100%', minWidth: 0 }} data-testid={testId}>
@@ -271,7 +273,7 @@ export function PfScatterChart<T>({
             left: `${(hoveredPoint.px / width) * 100}%`,
             top: `${(hoveredPoint.py / height) * 100}%`,
             // Shift sideways near the edges (0% at the left edge, -100% at the right) and flip below the marker near the top.
-            transform: `translate(${-(hoveredPoint.px / width) * 100}%, ${hoveredPoint.py < TIP_FLIP_Y ? '10px' : 'calc(-100% - 10px)'})`,
+            transform: `translate(${-(hoveredPoint.px / width) * 100}%, ${hoveredPoint.py < TIP_FLIP_Y ? `${gap}px` : `calc(-100% - ${gap}px)`})`,
             pointerEvents: 'none',
             ...theme.tooltip.container,
             padding: '4px 8px',

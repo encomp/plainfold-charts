@@ -258,9 +258,8 @@ describe('PfScatterChart', () => {
     const pct = (v: string) => parseFloat(/translate\(([-\d.]+)%/.exec(v)![1])
     expect(pct(tf('lo'))).toBeGreaterThan(pct(tf('mid')))
     expect(pct(tf('mid'))).toBeGreaterThan(pct(tf('hi')))
-    expect(tf('hi')).toContain('10px') // top of the plot: flipped below
-    expect(tf('hi')).not.toContain('100%) ')
-    expect(tf('lo')).toContain('calc(-100% - 10px)') // bottom: stays above
+    expect(tf('hi')).toMatch(/^translate\([-\d.]+%, 12px\)$/) // top of the plot: flipped below, gap = default radius 6 + 6
+    expect(tf('lo')).toMatch(/^translate\([-\d.]+%, calc\(-100% - 12px\)\)$/) // bottom: stays above
   })
 
   describe('width measuring', () => {
