@@ -14,6 +14,7 @@ No downstream Plainfold dependencies -- this is a leaf package.
 - `PfLineChart` -- props: `series`, `curved`, `height`, `colors`
 - `PfPieChart` -- props: `data`, `donut`, `height`, `colors`
 - `PfHeatmap` -- props: `data`, `height`
+- `PfScatterChart` -- props: `points`, `getId`, `getX`, `getY`, `getSize`, `getTone`, `getDashed`, `xAxis`, `yAxis`, `selectedId`, `onSelect`, `renderTooltip`, `renderLabel`, `regions`, `emptyState`, `height` (hand-rolled SVG, no Nivo dependency; each point is a focusable button)
 
 ### Hooks
 - `usePfChartTheme()` -- returns Nivo-compatible theme from CSS variables

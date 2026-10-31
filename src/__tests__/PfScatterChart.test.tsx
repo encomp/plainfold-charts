@@ -1,0 +1,142 @@
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { PfScatterChart, type PfScatterChartProps } from '../components/PfScatterChart'
+
+interface P { id: string; x: number | null; y: number | null; r?: number | null; tone?: 'ok' | 'warn' | 'bad' | 'neutral'; dashed?: boolean }
+
+const pts: P[] = [
+  { id: 'a', x: 120, y: 40, r: 5 },
+  { id: 'b', x: 200, y: 80, r: 20 },
+  { id: 'c', x: 300, y: 10, r: null },
+]
+
+function setup(over: Partial<PfScatterChartProps<P>> = {}) {
+  const props: PfScatterChartProps<P> = {
+    points: pts,
+    getId: (p) => p.id,
+    getX: (p) => p.x,
+    getY: (p) => p.y,
+    xAxis: { label: 'Width' },
+    yAxis: { label: 'Height' },
+    ...over,
+  }
+  return render(<PfScatterChart {...props} />)
+}
+
+describe('PfScatterChart', () => {
+  it('renders one button per drawable point', () => {
+    setup()
+    expect(screen.getAllByRole('button')).toHaveLength(3)
+  })
+
+  it('skips points with a null x or y', () => {
+    setup({ points: [...pts, { id: 'n1', x: null, y: 3 }, { id: 'n2', x: 3, y: null }] })
+    expect(screen.getAllByRole('button')).toHaveLength(3)
+    expect(screen.queryByRole('button', { name: 'n1' })).toBeNull()
+  })
+
+  it('names points from renderLabel text or getId', () => {
+    setup({ renderLabel: (p) => (p.id === 'a' ? `Point ${p.id}` : null) })
+    expect(screen.getByRole('button', { name: /Point a/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^b/ })).toBeInTheDocument()
+  })
+
+  it('calls onSelect on click, Enter and Space', () => {
+    const onSelect = vi.fn()
+    setup({ onSelect })
+    const a = screen.getByRole('button', { name: /^a/ })
+    fireEvent.click(a)
+    fireEvent.keyDown(a, { key: 'Enter' })
+    fireEvent.keyDown(a, { key: ' ' })
+    expect(onSelect).toHaveBeenCalledTimes(3)
+    expect(onSelect).toHaveBeenCalledWith('a')
+  })
+
+  it('marks the selected point with aria-pressed', () => {
+    setup({ selectedId: 'b' })
+    expect(screen.getByRole('button', { name: /^b/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^a/ })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('adds a hidden word and a shape for tone', () => {
+    setup({
+      points: [
+        { id: 'w', x: 1, y: 1, tone: 'warn' },
+        { id: 'x', x: 2, y: 2, tone: 'bad' },
+        { id: 'y', x: 3, y: 3, tone: 'ok' },
+        { id: 'z', x: 4, y: 4 },
+      ],
+      getTone: (p) => p.tone ?? 'neutral',
+    })
+    expect(screen.getByRole('button', { name: /^w.*warning/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^x.*problem/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^y.*good/ })).toBeInTheDocument()
+    const shapes = ['w', 'x', 'y', 'z'].map((id) => screen.getByRole('button', { name: new RegExp(`^${id}`) }).querySelector('[data-shape]')!.getAttribute('data-shape'))
+    expect(new Set(shapes).size).toBe(3)
+    expect(screen.getByText('warning')).toBeInTheDocument()
+  })
+
+  it('tone changes the outline colour', () => {
+    setup({ getTone: (p) => (p.id === 'a' ? 'bad' : 'neutral') })
+    const stroke = (id: string) => screen.getByRole('button', { name: new RegExp(`^${id}`) }).querySelector('[data-shape]')!.getAttribute('stroke')
+    expect(stroke('a')).not.toBe(stroke('b'))
+  })
+
+  it('draws a dashed outline when getDashed', () => {
+    setup({ getDashed: (p) => p.id === 'a' })
+    const shape = (id: string) => screen.getByRole('button', { name: new RegExp(`^${id}`) }).querySelector('[data-shape]')!
+    expect(shape('a').getAttribute('stroke-dasharray')).toBeTruthy()
+    expect(shape('b').getAttribute('stroke-dasharray')).toBeNull()
+  })
+
+  it('scales radius with getSize and uses a default for null', () => {
+    setup({ getSize: (p) => p.r ?? null })
+    const r = (id: string) => Number(screen.getByRole('button', { name: new RegExp(`^${id}`) }).getAttribute('data-r'))
+    expect(r('b')).toBeGreaterThan(r('a'))
+    expect(r('c')).toBeGreaterThan(0)
+    expect(r('c')).not.toBe(r('a'))
+  })
+
+  it('renders labelled regions at data coordinates', () => {
+    const { container } = setup({ regions: [{ x0: 100, x1: 200, y0: 20, y1: 60, label: 'Zone one' }] })
+    expect(screen.getByText('Zone one')).toBeInTheDocument()
+    const rect = container.querySelector('[data-region] rect')!
+    expect(Number(rect.getAttribute('width'))).toBeGreaterThan(0)
+    expect(Number(rect.getAttribute('height'))).toBeGreaterThan(0)
+  })
+
+  it('shows axis labels and formats ticks', () => {
+    setup({ xAxis: { label: 'Width', min: 0, max: 400, format: (v) => `${v}px` } })
+    expect(screen.getByText('Width')).toBeInTheDocument()
+    expect(screen.getByText('Height')).toBeInTheDocument()
+    expect(screen.getAllByText(/px$/).length).toBeGreaterThan(1)
+  })
+
+  it('shows emptyState with zero drawable points', () => {
+    setup({ points: [{ id: 'n', x: null, y: 1 }], emptyState: <p>Nothing here</p> })
+    expect(screen.getByText('Nothing here')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('keeps no state across a changed points array', () => {
+    const base = { getId: (p: P) => p.id, getX: (p: P) => p.x, getY: (p: P) => p.y, xAxis: { label: 'X' }, yAxis: { label: 'Y' } }
+    const { rerender } = render(<PfScatterChart {...base} points={pts} />)
+    expect(screen.getAllByRole('button')).toHaveLength(3)
+    rerender(<PfScatterChart {...base} points={[pts[0]]} />)
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+
+  it('shows renderTooltip on hover and focus', () => {
+    setup({ renderTooltip: (p) => <span>Tip {p.id}</span> })
+    const a = screen.getByRole('button', { name: /^a/ })
+    expect(screen.queryByText('Tip a')).toBeNull()
+    fireEvent.mouseEnter(a)
+    expect(screen.getByText('Tip a')).toBeInTheDocument()
+    fireEvent.mouseLeave(a)
+    expect(screen.queryByText('Tip a')).toBeNull()
+    fireEvent.focus(screen.getByRole('button', { name: /^b/ }))
+    expect(screen.getByText('Tip b')).toBeInTheDocument()
+    fireEvent.blur(screen.getByRole('button', { name: /^b/ }))
+    expect(screen.queryByText('Tip b')).toBeNull()
+  })
+})
