@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { usePfChartTheme } from '../usePfChartTheme'
 
 export type PfScatterTone = 'ok' | 'warn' | 'bad' | 'neutral'
@@ -27,7 +27,7 @@ export interface PfScatterRegion {
 export interface PfScatterChartProps<T> {
   /** Items to plot. */
   points: T[]
-  /** Stable unique id; also the fallback accessible name. */
+  /** Unique id (duplicates are a caller bug); also the fallback accessible name. */
   getId(p: T): string
   /** X value; a point with a null x or y is not drawn (the caller counts them). */
   getX(p: T): number | null
@@ -47,18 +47,18 @@ export interface PfScatterChartProps<T> {
   onSelect?(id: string): void
   /** Shown on hover and focus. */
   renderTooltip?(p: T): ReactNode
-  /** Accessible name text for a point (falls back to getId). */
-  renderLabel?(p: T): string | number | null
+  /** Accessible name text for a point; used only when it is a string or number, else getId. */
+  renderLabel?(p: T): ReactNode
   /** Shaded labelled rectangles behind the points. */
   regions?: PfScatterRegion[]
   /** Shown when there are zero drawable points. */
   emptyState?: ReactNode
-  /** Chart height in px, default 320. */
+  /** Chart height in px, default 320. Width follows the container. */
   height?: number
   'data-testid'?: string
 }
 
-const W = 600
+const FALLBACK_W = 600 // used where ResizeObserver or layout is unavailable (jsdom)
 const M = { top: 16, right: 20, bottom: 44, left: 56 }
 const R_DEFAULT = 6
 const R_MIN = 4
@@ -116,10 +116,23 @@ export function PfScatterChart<T>({
   'data-testid': testId,
 }: PfScatterChartProps<T>) {
   const theme = usePfChartTheme()
-  const [hovered, setHovered] = useState<number | null>(null)
+  const [hovered, setHovered] = useState<string | null>(null)
+  const [width, setWidth] = useState(FALLBACK_W)
+  const wrapRef = useRef<HTMLDivElement>(null)
   const uid = useId()
   const clipId = `${uid}-clip`
   const tipId = `${uid}-tip`
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([entry]) => {
+      const w = Math.round(entry.contentRect.width)
+      if (w > 0) setWidth(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const drawable = points.flatMap((p) => {
     const x = getX(p)
@@ -128,12 +141,12 @@ export function PfScatterChart<T>({
   })
 
   if (drawable.length === 0) {
-    return <div data-testid={testId}>{emptyState}</div>
+    return <div ref={wrapRef} data-testid={testId}>{emptyState}</div>
   }
 
   const [x0, x1] = domain(drawable.map((d) => d.x), xAxis)
   const [y0, y1] = domain(drawable.map((d) => d.y), yAxis)
-  const pw = W - M.left - M.right
+  const pw = Math.max(width - M.left - M.right, 1)
   const ph = height - M.top - M.bottom
   const sx = (v: number) => M.left + ((v - x0) / (x1 - x0)) * pw
   const sy = (v: number) => M.top + ph - ((v - y0) / (y1 - y0)) * ph
@@ -151,30 +164,30 @@ export function PfScatterChart<T>({
 
   const label = (p: T) => {
     const l = renderLabel?.(p)
-    return l === null || l === undefined ? getId(p) : String(l)
+    return typeof l === 'string' || typeof l === 'number' ? String(l) : getId(p)
   }
   const select = (id: string) => onSelect?.(id)
-  const hoveredPoint = hovered === null ? null : drawable[hovered]
+  const hoveredPoint = hovered === null ? null : drawable.find((d) => getId(d.p) === hovered)
 
   return (
-    <div style={{ position: 'relative', width: '100%' }} data-testid={testId}>
-      <svg viewBox={`0 0 ${W} ${height}`} width="100%" role="group" aria-label={`${yAxis.label} by ${xAxis.label}`} style={{ display: 'block', height: 'auto', fontSize: theme.fontSize, fontFamily: theme.tooltip.container.fontFamily }}>
+    <div ref={wrapRef} style={{ position: 'relative', width: '100%' }} data-testid={testId}>
+      <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="group" aria-label={`${yAxis.label} by ${xAxis.label}`} style={{ display: 'block', fontSize: theme.fontSize, fontFamily: theme.tooltip.container.fontFamily }}>
         <defs>
           <clipPath id={clipId}>
             <rect x={M.left} y={M.top} width={pw} height={ph} />
           </clipPath>
         </defs>
         <g clipPath={`url(#${clipId})`}>
-        {(regions ?? []).map((r, i) => {
-          const rx = Math.min(sx(r.x0), sx(r.x1))
-          const ry = Math.min(sy(r.y0), sy(r.y1))
-          return (
-            <g key={i} data-region>
-              <rect x={rx} y={ry} width={Math.abs(sx(r.x1) - sx(r.x0))} height={Math.abs(sy(r.y1) - sy(r.y0))} fill={theme.textColor} fillOpacity={0.1} />
-              <text x={rx + 4} y={ry + 12} fill={theme.textColor}>{r.label}</text>
-            </g>
-          )
-        })}
+          {(regions ?? []).map((r, i) => {
+            const rx = Math.min(sx(r.x0), sx(r.x1))
+            const ry = Math.min(sy(r.y0), sy(r.y1))
+            return (
+              <g key={i} data-region>
+                <rect x={rx} y={ry} width={Math.abs(sx(r.x1) - sx(r.x0))} height={Math.abs(sy(r.y1) - sy(r.y0))} fill={theme.textColor} fillOpacity={0.1} />
+                <text x={rx + 4} y={ry + 12} fill={theme.textColor}>{r.label}</text>
+              </g>
+            )
+          })}
         </g>
         {ticks([x0, x1]).map((t) => (
           <g key={`x${t}`}>
@@ -190,8 +203,7 @@ export function PfScatterChart<T>({
         ))}
         <text x={M.left + pw / 2} y={height - 6} textAnchor="middle" fill={theme.axis.legend.text.fill}>{xAxis.label}</text>
         <text transform={`translate(12 ${M.top + ph / 2}) rotate(-90)`} textAnchor="middle" fill={theme.axis.legend.text.fill}>{yAxis.label}</text>
-        <g clipPath={`url(#${clipId})`}>
-        {drawable.map(({ p, x, y }, i) => {
+        {drawable.map(({ p, x, y }) => {
           const id = getId(p)
           const tone = TONE[getTone?.(p) ?? 'neutral']
           const r = radius(p)
@@ -206,11 +218,11 @@ export function PfScatterChart<T>({
           }
           return (
             <g
-              key={`${id}:${i}`}
+              key={id}
               role="button"
               tabIndex={0}
               aria-pressed={selected}
-              aria-describedby={hovered === i && renderTooltip ? tipId : undefined}
+              aria-describedby={hovered === id && renderTooltip ? tipId : undefined}
               aria-label={tone.word ? `${label(p)}, ${tone.word}` : label(p)}
               data-r={r}
               transform={`translate(${sx(x)} ${sy(y)})`}
@@ -222,18 +234,15 @@ export function PfScatterChart<T>({
                   select(id)
                 }
               }}
-              onMouseEnter={() => setHovered(i)}
+              onMouseEnter={() => setHovered(id)}
               onMouseLeave={() => setHovered(null)}
-              onFocus={() => setHovered(i)}
+              onFocus={() => setHovered(id)}
               onBlur={() => setHovered(null)}
             >
-              {/* Visually hidden tone word as real text, so colour is never the only cue. */}
-              {tone.word && <text opacity={0} pointerEvents="none">{tone.word}</text>}
               {tone.shape === 'circle' ? <circle r={r} {...shapeCommon} /> : <polygon {...shapeProps(tone.shape, r)} {...shapeCommon} />}
             </g>
           )
         })}
-        </g>
       </svg>
       {hoveredPoint && renderTooltip && (
         <div
@@ -241,7 +250,7 @@ export function PfScatterChart<T>({
           role="tooltip"
           style={{
             position: 'absolute',
-            left: `${(sx(hoveredPoint.x) / W) * 100}%`,
+            left: `${(sx(hoveredPoint.x) / width) * 100}%`,
             top: `${(sy(hoveredPoint.y) / height) * 100}%`,
             transform: 'translate(-50%, calc(-100% - 10px))',
             pointerEvents: 'none',

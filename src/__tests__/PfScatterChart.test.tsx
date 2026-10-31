@@ -58,7 +58,7 @@ describe('PfScatterChart', () => {
     expect(screen.getByRole('button', { name: /^a/ })).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('adds a hidden word and a shape for tone', () => {
+  it('puts the tone word in the accessible name and a distinct shape per tone', () => {
     setup({
       points: [
         { id: 'w', x: 1, y: 1, tone: 'warn' },
@@ -73,7 +73,6 @@ describe('PfScatterChart', () => {
     expect(screen.getByRole('button', { name: /^y.*good/ })).toBeInTheDocument()
     const shapes = ['w', 'x', 'y', 'z'].map((id) => screen.getByRole('button', { name: new RegExp(`^${id}`) }).querySelector('[data-shape]')!.getAttribute('data-shape'))
     expect(new Set(shapes).size).toBe(3)
-    expect(screen.getByText('warning')).toBeInTheDocument()
   })
 
   it('tone changes the outline colour', () => {
@@ -142,10 +141,36 @@ describe('PfScatterChart', () => {
     expect(a.getAttribute('aria-describedby')).toBe(tip.id)
   })
 
-  it('clips points and regions to the plot area', () => {
+  it('clips regions but not points', () => {
     const { container } = setup({ regions: [{ x0: 0, x1: 9999, y0: 0, y1: 9999, label: 'Big' }] })
     expect(container.querySelector('clipPath rect')).not.toBeNull()
-    expect(container.querySelectorAll('g[clip-path]').length).toBe(2)
+    expect(container.querySelectorAll('g[clip-path]').length).toBe(1)
+    expect(container.querySelector('g[clip-path] [role="button"]')).toBeNull()
+  })
+
+  it('uses pixel height with no scaling', () => {
+    const { container } = setup({ height: 250 })
+    const svg = container.querySelector('svg')!
+    expect(svg.getAttribute('height')).toBe('250')
+    expect(svg.getAttribute('viewBox')).toBe(`0 0 ${svg.getAttribute('width')} 250`)
+  })
+
+  it('falls back to the id for null or JSX labels', () => {
+    setup({ renderLabel: (p) => (p.id === 'a' ? null : <b>{p.id}</b>) })
+    expect(screen.getByRole('button', { name: 'a' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'b' })).toBeInTheDocument()
+  })
+
+  it('does not show another point when points change under a hovered id', () => {
+    const base = { getId: (p: P) => p.id, getX: (p: P) => p.x, getY: (p: P) => p.y, xAxis: { label: 'X' }, yAxis: { label: 'Y' }, renderTooltip: (p: P) => <span>Tip {p.id}</span> }
+    const { rerender } = render(<PfScatterChart {...base} points={pts} />)
+    fireEvent.mouseEnter(screen.getByRole('button', { name: /^a/ }))
+    expect(screen.getByText('Tip a')).toBeInTheDocument()
+    rerender(<PfScatterChart {...base} points={[pts[1], pts[2]]} />)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    rerender(<PfScatterChart {...base} points={[pts[1], pts[0]]} />)
+    expect(screen.getByText('Tip a')).toBeInTheDocument()
+    expect(screen.queryByText('Tip b')).toBeNull()
   })
 
   it('keeps a valid domain for one point, equal points, a lone min and min above max', () => {
@@ -160,10 +185,5 @@ describe('PfScatterChart', () => {
       expect(container.innerHTML).not.toMatch(/NaN|Infinity/)
       unmount()
     }
-  })
-
-  it('tolerates duplicate ids', () => {
-    setup({ points: [pts[0], { ...pts[0] }] })
-    expect(screen.getAllByRole('button')).toHaveLength(2)
   })
 })
