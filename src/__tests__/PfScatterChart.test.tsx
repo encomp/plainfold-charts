@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { PfScatterChart, type PfScatterChartProps } from '../components/PfScatterChart'
 
 interface P { id: string; x: number | null; y: number | null; r?: number | null; tone?: 'ok' | 'warn' | 'bad' | 'neutral'; dashed?: boolean }
@@ -173,6 +173,11 @@ describe('PfScatterChart', () => {
     expect(screen.queryByText('Tip b')).toBeNull()
   })
 
+  it('tolerates duplicate ids without throwing', () => {
+    setup({ points: [pts[0], { ...pts[0] }] })
+    expect(screen.getAllByRole('button')).toHaveLength(2)
+  })
+
   it('keeps a valid domain for one point, equal points, a lone min and min above max', () => {
     for (const over of [
       { points: [pts[0]] },
@@ -185,5 +190,55 @@ describe('PfScatterChart', () => {
       expect(container.innerHTML).not.toMatch(/NaN|Infinity/)
       unmount()
     }
+  })
+
+  it('clamps points outside an explicit axis range to the plot box', () => {
+    setup({ xAxis: { label: 'X', min: 150, max: 250 }, yAxis: { label: 'Y', min: 20, max: 60 } })
+    const pos = (id: string) => {
+      const m = /translate\(([-\d.]+) ([-\d.]+)\)/.exec(screen.getByRole('button', { name: new RegExp(`^${id}`) }).getAttribute('transform')!)!
+      return [Number(m[1]), Number(m[2])]
+    }
+    const [ax] = pos('a') // x=120 is below min 150
+    expect(ax).toBeGreaterThanOrEqual(56)
+    const [cx] = pos('c') // x=300 is above max 250
+    expect(cx).toBeLessThanOrEqual(600 - 20)
+    const [, by] = pos('b') // y=80 is above max 60
+    expect(by).toBeGreaterThanOrEqual(16)
+  })
+
+  it('lets the wrapper shrink in flex/grid parents', () => {
+    const { container } = setup()
+    const wrap = container.firstElementChild as HTMLElement
+    expect(wrap.style.minWidth).toBe('0px')
+    expect(wrap.style.overflow).toBe('hidden')
+  })
+
+  describe('width measuring', () => {
+    const original = globalThis.ResizeObserver
+    afterEach(() => {
+      globalThis.ResizeObserver = original
+    })
+
+    it('follows the observer, ignores 0 and disconnects on unmount', () => {
+      let cb: ResizeObserverCallback = () => {}
+      const disconnect = vi.fn()
+      globalThis.ResizeObserver = class {
+        constructor(c: ResizeObserverCallback) {
+          cb = c
+        }
+        observe() {}
+        unobserve() {}
+        disconnect = disconnect
+      } as unknown as typeof ResizeObserver
+      const { container, unmount } = setup()
+      const emit = (w: number) =>
+        act(() => cb([{ contentRect: { width: w } } as ResizeObserverEntry], {} as ResizeObserver))
+      emit(400)
+      expect(container.querySelector('svg')!.getAttribute('width')).toBe('400')
+      emit(0)
+      expect(container.querySelector('svg')!.getAttribute('width')).toBe('400')
+      unmount()
+      expect(disconnect).toHaveBeenCalled()
+    })
   })
 })

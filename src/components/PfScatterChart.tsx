@@ -83,6 +83,10 @@ function domain(vals: number[], axis: PfScatterAxis): [number, number] {
   return [lo, hi]
 }
 
+function clamp(v: number, lo: number, hi: number): number {
+  return hi < lo ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v))
+}
+
 function ticks([lo, hi]: [number, number]): number[] {
   return Array.from({ length: TICKS }, (_, i) => lo + ((hi - lo) * i) / (TICKS - 1))
 }
@@ -170,7 +174,7 @@ export function PfScatterChart<T>({
   const hoveredPoint = hovered === null ? null : drawable.find((d) => getId(d.p) === hovered)
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', width: '100%' }} data-testid={testId}>
+    <div ref={wrapRef} style={{ position: 'relative', width: '100%', minWidth: 0, overflow: 'hidden' }} data-testid={testId}>
       <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="group" aria-label={`${yAxis.label} by ${xAxis.label}`} style={{ display: 'block', fontSize: theme.fontSize, fontFamily: theme.tooltip.container.fontFamily }}>
         <defs>
           <clipPath id={clipId}>
@@ -203,7 +207,7 @@ export function PfScatterChart<T>({
         ))}
         <text x={M.left + pw / 2} y={height - 6} textAnchor="middle" fill={theme.axis.legend.text.fill}>{xAxis.label}</text>
         <text transform={`translate(12 ${M.top + ph / 2}) rotate(-90)`} textAnchor="middle" fill={theme.axis.legend.text.fill}>{yAxis.label}</text>
-        {drawable.map(({ p, x, y }) => {
+        {drawable.map(({ p, x, y }, i) => {
           const id = getId(p)
           const tone = TONE[getTone?.(p) ?? 'neutral']
           const r = radius(p)
@@ -218,14 +222,14 @@ export function PfScatterChart<T>({
           }
           return (
             <g
-              key={id}
+              key={`${id}:${i}`}
               role="button"
               tabIndex={0}
               aria-pressed={selected}
               aria-describedby={hovered === id && renderTooltip ? tipId : undefined}
               aria-label={tone.word ? `${label(p)}, ${tone.word}` : label(p)}
               data-r={r}
-              transform={`translate(${sx(x)} ${sy(y)})`}
+              transform={`translate(${clamp(sx(x), M.left + r, M.left + pw - r)} ${clamp(sy(y), M.top + r, M.top + ph - r)})`}
               style={{ cursor: onSelect ? 'pointer' : 'default' }}
               onClick={() => select(id)}
               onKeyDown={(e) => {
