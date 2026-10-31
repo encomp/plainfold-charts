@@ -223,6 +223,46 @@ describe('PfScatterChart', () => {
     expect(parseFloat(tip.style.top)).toBeCloseTo((Number(m[2]) / 320) * 100, 3)
   })
 
+  it('ignores non-finite values and sizes', () => {
+    const { container } = setup({
+      points: [
+        { id: 'a', x: 1, y: 1, r: Number.NaN },
+        { id: 'b', x: 2, y: 2, r: Number.POSITIVE_INFINITY },
+        { id: 'c', x: 3, y: 3, r: 4 },
+        { id: 'd', x: Number.NaN, y: 1 },
+        { id: 'e', x: 1, y: Number.POSITIVE_INFINITY },
+      ],
+      getSize: (p) => p.r ?? null,
+    })
+    expect(screen.getAllByRole('button')).toHaveLength(3)
+    expect(container.innerHTML).not.toMatch(/NaN|Infinity/)
+  })
+
+  it('shifts the tooltip near edges and flips it below near the top', () => {
+    setup({
+      points: [
+        { id: 'lo', x: 0, y: 0 },
+        { id: 'hi', x: 100, y: 100 },
+        { id: 'mid', x: 50, y: 50 },
+      ],
+      xAxis: { label: 'X', min: 0, max: 100 },
+      yAxis: { label: 'Y', min: 0, max: 100 },
+      renderTooltip: (p) => <span>Tip {p.id}</span>,
+    })
+    const tf = (id: string) => {
+      fireEvent.mouseEnter(screen.getByRole('button', { name: new RegExp(`^${id}`) }))
+      const v = screen.getByRole('tooltip').style.transform
+      fireEvent.mouseLeave(screen.getByRole('button', { name: new RegExp(`^${id}`) }))
+      return v
+    }
+    const pct = (v: string) => parseFloat(/translate\(([-\d.]+)%/.exec(v)![1])
+    expect(pct(tf('lo'))).toBeGreaterThan(pct(tf('mid')))
+    expect(pct(tf('mid'))).toBeGreaterThan(pct(tf('hi')))
+    expect(tf('hi')).toContain('10px') // top of the plot: flipped below
+    expect(tf('hi')).not.toContain('100%) ')
+    expect(tf('lo')).toContain('calc(-100% - 10px)') // bottom: stays above
+  })
+
   describe('width measuring', () => {
     const original = globalThis.ResizeObserver
     afterEach(() => {

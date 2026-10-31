@@ -63,6 +63,7 @@ const M = { top: 16, right: 20, bottom: 44, left: 56 }
 const R_DEFAULT = 6
 const R_MIN = 4
 const R_MAX = 16
+const TIP_FLIP_Y = 48
 const TICKS = 5
 
 const TONE: Record<PfScatterTone, { color: string; shape: 'circle' | 'triangle' | 'diamond'; word: string }> = {
@@ -157,12 +158,15 @@ export function PfScatterChart<T>({
   const fx = xAxis.format ?? defaultFormat
   const fy = yAxis.format ?? defaultFormat
 
-  const sizes = drawable.map((d) => getSize?.(d.p) ?? null).filter((s): s is number => s !== null && s > 0)
-  const maxSize = sizes.length ? Math.max(...sizes) : 0
+  const validSize = (p: T): number | null => {
+    const s = getSize?.(p) ?? null
+    return s !== null && Number.isFinite(s) && s > 0 ? s : null
+  }
+  const maxSize = drawable.reduce((m, d) => Math.max(m, validSize(d.p) ?? 0), 0)
   // Area-proportional radius.
   const radius = (p: T) => {
-    const s = getSize?.(p) ?? null
-    if (s === null || s <= 0 || maxSize === 0) return R_DEFAULT
+    const s = validSize(p)
+    if (s === null || maxSize === 0) return R_DEFAULT
     return R_MIN + Math.sqrt(s / maxSize) * (R_MAX - R_MIN)
   }
 
@@ -266,7 +270,8 @@ export function PfScatterChart<T>({
             position: 'absolute',
             left: `${(hoveredPoint.px / width) * 100}%`,
             top: `${(hoveredPoint.py / height) * 100}%`,
-            transform: 'translate(-50%, calc(-100% - 10px))',
+            // Shift sideways near the edges (0% at the left edge, -100% at the right) and flip below the marker near the top.
+            transform: `translate(${-(hoveredPoint.px / width) * 100}%, ${hoveredPoint.py < TIP_FLIP_Y ? '10px' : 'calc(-100% - 10px)'})`,
             pointerEvents: 'none',
             ...theme.tooltip.container,
             padding: '4px 8px',
