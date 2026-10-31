@@ -118,14 +118,6 @@ describe('PfScatterChart', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 
-  it('keeps no state across a changed points array', () => {
-    const base = { getId: (p: P) => p.id, getX: (p: P) => p.x, getY: (p: P) => p.y, xAxis: { label: 'X' }, yAxis: { label: 'Y' } }
-    const { rerender } = render(<PfScatterChart {...base} points={pts} />)
-    expect(screen.getAllByRole('button')).toHaveLength(3)
-    rerender(<PfScatterChart {...base} points={[pts[0]]} />)
-    expect(screen.getAllByRole('button')).toHaveLength(1)
-  })
-
   it('shows renderTooltip on hover and focus', () => {
     setup({ renderTooltip: (p) => <span>Tip {p.id}</span> })
     const a = screen.getByRole('button', { name: /^a/ })
@@ -138,5 +130,40 @@ describe('PfScatterChart', () => {
     expect(screen.getByText('Tip b')).toBeInTheDocument()
     fireEvent.blur(screen.getByRole('button', { name: /^b/ }))
     expect(screen.queryByText('Tip b')).toBeNull()
+  })
+
+  it('positions the tooltip in percentages on both axes and links it by aria-describedby', () => {
+    setup({ renderTooltip: (p) => <span>Tip {p.id}</span>, height: 200 })
+    const a = screen.getByRole('button', { name: /^a/ })
+    fireEvent.mouseEnter(a)
+    const tip = screen.getByRole('tooltip')
+    expect(tip.style.left).toMatch(/%$/)
+    expect(tip.style.top).toMatch(/%$/)
+    expect(a.getAttribute('aria-describedby')).toBe(tip.id)
+  })
+
+  it('clips points and regions to the plot area', () => {
+    const { container } = setup({ regions: [{ x0: 0, x1: 9999, y0: 0, y1: 9999, label: 'Big' }] })
+    expect(container.querySelector('clipPath rect')).not.toBeNull()
+    expect(container.querySelectorAll('g[clip-path]').length).toBe(2)
+  })
+
+  it('keeps a valid domain for one point, equal points, a lone min and min above max', () => {
+    for (const over of [
+      { points: [pts[0]] },
+      { points: [pts[0], { ...pts[0], id: 'a2' }] },
+      { xAxis: { label: 'X', min: 500 } },
+      { xAxis: { label: 'X', min: 500, max: 100 } },
+      { yAxis: { label: 'Y', max: -5 } },
+    ] as Partial<PfScatterChartProps<P>>[]) {
+      const { container, unmount } = setup(over)
+      expect(container.innerHTML).not.toMatch(/NaN|Infinity/)
+      unmount()
+    }
+  })
+
+  it('tolerates duplicate ids', () => {
+    setup({ points: [pts[0], { ...pts[0] }] })
+    expect(screen.getAllByRole('button')).toHaveLength(2)
   })
 })

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { usePfChartTheme } from '../usePfChartTheme'
 
 export type PfScatterTone = 'ok' | 'warn' | 'bad' | 'neutral'
@@ -48,7 +48,7 @@ export interface PfScatterChartProps<T> {
   /** Shown on hover and focus. */
   renderTooltip?(p: T): ReactNode
   /** Accessible name text for a point (falls back to getId). */
-  renderLabel?(p: T): ReactNode
+  renderLabel?(p: T): string | number | null
   /** Shaded labelled rectangles behind the points. */
   regions?: PfScatterRegion[]
   /** Shown when there are zero drawable points. */
@@ -66,20 +66,20 @@ const R_MAX = 16
 const TICKS = 5
 
 const TONE: Record<PfScatterTone, { color: string; shape: 'circle' | 'triangle' | 'diamond'; word: string }> = {
-  ok: { color: 'var(--pf-success, #22c55e)', shape: 'circle', word: 'good' },
+  ok: { color: 'var(--pf-positive, #22c55e)', shape: 'circle', word: 'good' },
   warn: { color: 'var(--pf-warning, #f59e0b)', shape: 'triangle', word: 'warning' },
   bad: { color: 'var(--pf-danger, #ef4444)', shape: 'diamond', word: 'problem' },
   neutral: { color: 'var(--pf-accent, #3b82f6)', shape: 'circle', word: '' },
 }
 
 function domain(vals: number[], axis: PfScatterAxis): [number, number] {
-  let lo = axis.min ?? Math.min(...vals)
-  let hi = axis.max ?? Math.max(...vals)
+  let lo = axis.min ?? vals.reduce((a, b) => Math.min(a, b))
+  let hi = axis.max ?? vals.reduce((a, b) => Math.max(a, b))
   if (axis.min === undefined && axis.max === undefined) {
     const pad = (hi - lo) * 0.05 || 1
     lo -= pad
     hi += pad
-  } else if (lo === hi) hi = lo + 1
+  } else if (hi <= lo) hi = lo + 1
   return [lo, hi]
 }
 
@@ -116,7 +116,10 @@ export function PfScatterChart<T>({
   'data-testid': testId,
 }: PfScatterChartProps<T>) {
   const theme = usePfChartTheme()
-  const [hovered, setHovered] = useState<string | null>(null)
+  const [hovered, setHovered] = useState<number | null>(null)
+  const uid = useId()
+  const clipId = `${uid}-clip`
+  const tipId = `${uid}-tip`
 
   const drawable = points.flatMap((p) => {
     const x = getX(p)
@@ -148,14 +151,20 @@ export function PfScatterChart<T>({
 
   const label = (p: T) => {
     const l = renderLabel?.(p)
-    return typeof l === 'string' || typeof l === 'number' ? String(l) : getId(p)
+    return l === null || l === undefined ? getId(p) : String(l)
   }
   const select = (id: string) => onSelect?.(id)
-  const hoveredPoint = hovered === null ? null : drawable.find((d) => getId(d.p) === hovered)
+  const hoveredPoint = hovered === null ? null : drawable[hovered]
 
   return (
     <div style={{ position: 'relative', width: '100%' }} data-testid={testId}>
-      <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} role="group" aria-label={`${yAxis.label} by ${xAxis.label}`} style={{ fontSize: theme.fontSize, fontFamily: theme.tooltip.container.fontFamily }}>
+      <svg viewBox={`0 0 ${W} ${height}`} width="100%" role="group" aria-label={`${yAxis.label} by ${xAxis.label}`} style={{ display: 'block', height: 'auto', fontSize: theme.fontSize, fontFamily: theme.tooltip.container.fontFamily }}>
+        <defs>
+          <clipPath id={clipId}>
+            <rect x={M.left} y={M.top} width={pw} height={ph} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${clipId})`}>
         {(regions ?? []).map((r, i) => {
           const rx = Math.min(sx(r.x0), sx(r.x1))
           const ry = Math.min(sy(r.y0), sy(r.y1))
@@ -166,6 +175,7 @@ export function PfScatterChart<T>({
             </g>
           )
         })}
+        </g>
         {ticks([x0, x1]).map((t) => (
           <g key={`x${t}`}>
             <line x1={sx(t)} x2={sx(t)} y1={M.top} y2={M.top + ph} stroke={theme.grid.line.stroke} />
@@ -180,7 +190,8 @@ export function PfScatterChart<T>({
         ))}
         <text x={M.left + pw / 2} y={height - 6} textAnchor="middle" fill={theme.axis.legend.text.fill}>{xAxis.label}</text>
         <text transform={`translate(12 ${M.top + ph / 2}) rotate(-90)`} textAnchor="middle" fill={theme.axis.legend.text.fill}>{yAxis.label}</text>
-        {drawable.map(({ p, x, y }) => {
+        <g clipPath={`url(#${clipId})`}>
+        {drawable.map(({ p, x, y }, i) => {
           const id = getId(p)
           const tone = TONE[getTone?.(p) ?? 'neutral']
           const r = radius(p)
@@ -195,10 +206,11 @@ export function PfScatterChart<T>({
           }
           return (
             <g
-              key={id}
+              key={`${id}:${i}`}
               role="button"
               tabIndex={0}
               aria-pressed={selected}
+              aria-describedby={hovered === i && renderTooltip ? tipId : undefined}
               aria-label={tone.word ? `${label(p)}, ${tone.word}` : label(p)}
               data-r={r}
               transform={`translate(${sx(x)} ${sy(y)})`}
@@ -210,25 +222,27 @@ export function PfScatterChart<T>({
                   select(id)
                 }
               }}
-              onMouseEnter={() => setHovered(id)}
+              onMouseEnter={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
-              onFocus={() => setHovered(id)}
+              onFocus={() => setHovered(i)}
               onBlur={() => setHovered(null)}
             >
-              {/* The title carries the tone word as text, so colour is never the only cue. */}
-              {tone.word && <title>{tone.word}</title>}
+              {/* Visually hidden tone word as real text, so colour is never the only cue. */}
+              {tone.word && <text opacity={0} pointerEvents="none">{tone.word}</text>}
               {tone.shape === 'circle' ? <circle r={r} {...shapeCommon} /> : <polygon {...shapeProps(tone.shape, r)} {...shapeCommon} />}
             </g>
           )
         })}
+        </g>
       </svg>
       {hoveredPoint && renderTooltip && (
         <div
+          id={tipId}
           role="tooltip"
           style={{
             position: 'absolute',
             left: `${(sx(hoveredPoint.x) / W) * 100}%`,
-            top: sy(hoveredPoint.y),
+            top: `${(sy(hoveredPoint.y) / height) * 100}%`,
             transform: 'translate(-50%, calc(-100% - 10px))',
             pointerEvents: 'none',
             ...theme.tooltip.container,
