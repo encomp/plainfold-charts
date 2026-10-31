@@ -33,4 +33,4 @@ const items: Item[] = [
 />
 ```
 
-Every drawn point is a focusable button (Enter or Space selects). Tone is shown by colour, shape and a hidden word.
+Every drawn point is a focusable button (Enter or Space selects) when `onSelect` is given; without it points are non-interactive images, focusable only when `renderTooltip` is given. Tone is shown by colour, shape and a hidden word.

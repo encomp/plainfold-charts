@@ -41,7 +41,7 @@ export interface PfScatterChartProps<T> {
   getDashed?(p: T): boolean
   xAxis: PfScatterAxis
   yAxis: PfScatterAxis
-  /** Id of the selected point (marked with aria-pressed). */
+  /** Id of the selected point (marked with aria-pressed). Without `onSelect` points are not buttons: they are images, focusable only when `renderTooltip` is given. */
   selectedId?: string | null
   /** Called with the id on click, Enter or Space. */
   onSelect?(id: string): void
@@ -239,9 +239,9 @@ export function PfScatterChart<T>({
           return (
             <g
               key={`${id}:${i}`}
-              role="button"
-              tabIndex={0}
-              aria-pressed={selected}
+              role={onSelect ? 'button' : 'img'}
+              tabIndex={onSelect || renderTooltip ? 0 : undefined}
+              aria-pressed={onSelect ? selected : undefined}
               aria-describedby={hovered === id && renderTooltip ? tipId : undefined}
               aria-label={tone.word ? `${label(p)}, ${tone.word}` : label(p)}
               data-r={r}
@@ -249,7 +249,7 @@ export function PfScatterChart<T>({
               style={{ cursor: onSelect ? 'pointer' : 'default' }}
               onClick={() => select(id)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (onSelect && (e.key === 'Enter' || e.key === ' ')) {
                   e.preventDefault()
                   select(id)
                 }

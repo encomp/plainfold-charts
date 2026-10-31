@@ -18,6 +18,7 @@ function setup(over: Partial<PfScatterChartProps<P>> = {}) {
     getY: (p) => p.y,
     xAxis: { label: 'Width' },
     yAxis: { label: 'Height' },
+    onSelect: () => {},
     ...over,
   }
   return render(<PfScatterChart {...props} />)
@@ -56,6 +57,29 @@ describe('PfScatterChart', () => {
     setup({ selectedId: 'b' })
     expect(screen.getByRole('button', { name: /^b/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /^a/ })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('without onSelect points are not buttons and carry no aria-pressed', () => {
+    setup({ onSelect: undefined, selectedId: 'b' })
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    const imgs = screen.getAllByRole('img', { name: /^b/ })
+    expect(imgs[0]).not.toHaveAttribute('aria-pressed')
+    expect(imgs[0]).not.toHaveAttribute('tabindex')
+  })
+
+  it('without onSelect points stay focusable for the tooltip only', () => {
+    setup({ onSelect: undefined, renderTooltip: (p) => <span>tip {p.id}</span> })
+    const a = screen.getByRole('img', { name: /^a/ })
+    expect(a).toHaveAttribute('tabindex', '0')
+    expect(a).not.toHaveAttribute('aria-pressed')
+    fireEvent.focus(a)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('tip a')
+  })
+
+  it('without onSelect Space on a focused point is not swallowed', () => {
+    setup({ onSelect: undefined, renderTooltip: () => <span>t</span> })
+    const a = screen.getByRole('img', { name: /^a/ })
+    expect(fireEvent.keyDown(a, { key: ' ' })).toBe(true)
   })
 
   it('puts the tone word in the accessible name and a distinct shape per tone', () => {
@@ -164,7 +188,7 @@ describe('PfScatterChart', () => {
   it('does not show another point when points change under a hovered id', () => {
     const base = { getId: (p: P) => p.id, getX: (p: P) => p.x, getY: (p: P) => p.y, xAxis: { label: 'X' }, yAxis: { label: 'Y' }, renderTooltip: (p: P) => <span>Tip {p.id}</span> }
     const { rerender } = render(<PfScatterChart {...base} points={pts} />)
-    fireEvent.mouseEnter(screen.getByRole('button', { name: /^a/ }))
+    fireEvent.mouseEnter(screen.getByRole('img', { name: /^a/ }))
     expect(screen.getByText('Tip a')).toBeInTheDocument()
     rerender(<PfScatterChart {...base} points={[pts[1], pts[2]]} />)
     expect(screen.queryByRole('tooltip')).toBeNull()
