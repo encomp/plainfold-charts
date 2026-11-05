@@ -377,7 +377,13 @@ describe('ticks and axis room', () => {
       expect(screen.getAllByRole('button')).toHaveLength(3)
     })
 
-    it('two dots at the same spot: the second label is omitted, both dots stay buttons', () => {
+    it('a neighbouring dot blocking the right spot sends the label left or above', () => {
+      const m = placeLabels([{ id: 'a', px: 50, py: 50, r: 6, w: 40 }, { id: 'n', px: 66, py: 50, r: 6, w: 0 }], box)
+      const s = m.get('a')!
+      expect(s.anchor === 'end' || s.y < 50).toBe(true)
+    })
+
+    it('two dots at the same spot: both dots stay buttons and exactly two labels draw', () => {
       const items = [{ id: 'a', px: 10, py: 50, r: 6, w: 40 }, { id: 'b', px: 10, py: 50, r: 6, w: 40 }]
       // Box leaves room only to the right of the dots.
       const m = placeLabels(items, { x0: 9, y0: 44, x1: 200, y1: 56 })
@@ -385,7 +391,7 @@ describe('ticks and axis room', () => {
       expect(m.has('b')).toBe(false)
       const { container } = setup({ points: [{ id: 'a', x: 5, y: 5 }, { id: 'b', x: 5, y: 5 }], getPointLabel: lbl })
       expect(screen.getAllByRole('button')).toHaveLength(2)
-      expect(labelTexts(container).length).toBeLessThanOrEqual(2)
+      expect(labelTexts(container)).toHaveLength(2)
     })
 
     it('a label never leaves the plot box', () => {
@@ -422,6 +428,42 @@ describe('ticks and axis room', () => {
     it('a point with no size keeps the default radius', () => {
       setup({ getSize: (p) => (p.id === 'c' ? null : p.r ?? null) })
       expect(r('c')).toBe(6)
+    })
+  })
+
+  describe('key row', () => {
+    const legend = [{ label: 'good', tone: 'ok' as const }, { label: 'draft', tone: 'neutral' as const, dashed: true }]
+
+    it('renders one swatch per legend item with its label', () => {
+      setup({ legend })
+      const key = screen.getByTestId('chart-key')
+      expect(key.querySelectorAll('[data-swatch]')).toHaveLength(2)
+      expect(key).toHaveTextContent('good')
+      expect(key).toHaveTextContent('draft')
+    })
+
+    it('a dashed item has a dashed swatch', () => {
+      setup({ legend })
+      const sw = screen.getByTestId('chart-key').querySelectorAll('[data-swatch]')
+      expect(sw[0].getAttribute('stroke-dasharray')).toBeNull()
+      expect(sw[1].getAttribute('stroke-dasharray')).toBeTruthy()
+    })
+
+    it('note renders after the swatches', () => {
+      setup({ legend, note: 'Size = weight' })
+      const key = screen.getByTestId('chart-key')
+      expect(key.lastElementChild).toHaveTextContent('Size = weight')
+      expect(key.querySelector('[data-swatch]')!.compareDocumentPosition(key.lastElementChild!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it('no legend and no note renders no key row', () => {
+      setup()
+      expect(screen.queryByTestId('chart-key')).toBeNull()
+    })
+
+    it('the key row wraps at 320px', () => {
+      setup({ legend })
+      expect(screen.getByTestId('chart-key').style.flexWrap).toBe('wrap')
     })
   })
 })

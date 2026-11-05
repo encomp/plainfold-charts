@@ -21,10 +21,13 @@ const items: Item[] = [
   getX={(p) => p.width}
   getY={(p) => p.height}
   getSize={(p) => p.weight}
+  getPointLabel={(p) => `${p.id} ${p.height}`}
   getTone={(p) => p.state}
   getDashed={(p) => p.draft}
   xAxis={{ label: 'Width', format: (v) => `${v}px` }}
   yAxis={{ label: 'Height' }}
+  legend={[{ label: 'good', tone: 'ok' }, { label: 'draft', tone: 'neutral', dashed: true }]}
+  note="Size = weight"
   regions={[{ x0: 100, x1: 220, y0: 20, y1: 60, label: 'Target zone' }]}
   selectedId="a"
   onSelect={(id) => console.log(id)}
@@ -34,5 +37,9 @@ const items: Item[] = [
 ```
 
 Ticks are round values (steps of 1, 2, 2.5 or 5 times a power of ten) that extend the data range unless the axis sets `min` or `max`; without `format` a tick shows only the decimals its step needs.
+
+`getPointLabel` draws text beside a dot when there is room (right, left, above, then below; larger dots first, labels that would overlap are left out). Dot radius scales with `getSize` from 5 to 22 px.
+
+`legend` and `note` render one wrapping key row under the chart: a swatch per item in its tone's colour and shape (dashed outline when `dashed`), then the note text.
 
 Every drawn point is a focusable button (Enter or Space selects) when `onSelect` is given; without it points are non-interactive images, focusable only when `renderTooltip` is given. Tone is shown by colour, shape and a hidden word.

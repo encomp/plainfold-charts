@@ -26,6 +26,14 @@ export interface PfScatterRegion {
   label: string
 }
 
+export interface PfScatterLegendItem {
+  label: string
+  /** Swatch colour and shape follow the tone. */
+  tone: PfScatterTone
+  /** Dashed swatch outline, matching dashed points. */
+  dashed?: boolean
+}
+
 export interface PfScatterChartProps<T> {
   /** Items to plot. */
   points: T[]
@@ -55,6 +63,10 @@ export interface PfScatterChartProps<T> {
   renderLabel?(p: T): ReactNode
   /** Shaded labelled rectangles behind the points. */
   regions?: PfScatterRegion[]
+  /** Swatches (tone colour and shape, dashed when set) with their labels, in one row under the chart. */
+  legend?: PfScatterLegendItem[]
+  /** One line of text after the swatches in the key row. */
+  note?: ReactNode
   /** Shown when there are zero drawable points. */
   emptyState?: ReactNode
   /** Chart height in px, default 320. Width follows the container. */
@@ -64,6 +76,7 @@ export interface PfScatterChartProps<T> {
 
 const FALLBACK_W = 600 // used where ResizeObserver or layout is unavailable (jsdom)
 const M = { top: 16, bottom: 56 }
+// shortcut: 6.5px per character and a 12px label height ignore the theme font size; measure text if themes change it.
 const CHAR_W = 6.5 // rough px per tick label character
 const TITLE_ROOM = 20 // rotated y title plus its gap
 
@@ -123,6 +136,8 @@ export function PfScatterChart<T>({
   renderTooltip,
   renderLabel,
   regions,
+  legend,
+  note,
   emptyState,
   height = 320,
   'data-testid': testId,
@@ -303,6 +318,23 @@ export function PfScatterChart<T>({
           }}
         >
           {renderTooltip(hoveredPoint.p)}
+        </div>
+      )}
+      {(legend?.length || note) && (
+        <div data-testid="chart-key" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 16px', marginTop: 4, fontSize: theme.fontSize, color: theme.textColor }}>
+          {legend?.map((it) => {
+            const tone = TONE[it.tone]
+            const common = { 'data-swatch': '', fill: tone.color, fillOpacity: 0.6, stroke: tone.color, strokeWidth: 1.5, strokeDasharray: it.dashed ? '3 2' : undefined }
+            return (
+              <span key={it.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <svg width={16} height={16} viewBox="-8 -8 16 16" aria-hidden="true">
+                  {tone.shape === 'circle' ? <circle r={6} {...common} /> : <polygon {...shapeProps(tone.shape, 6)} {...common} />}
+                </svg>
+                {it.label}
+              </span>
+            )
+          })}
+          {note && <span>{note}</span>}
         </div>
       )}
     </div>

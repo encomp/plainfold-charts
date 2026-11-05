@@ -23,6 +23,7 @@ export interface LabelSpot {
   anchor: 'start' | 'end'
 }
 
+// shortcut: 12px label height ignores the theme font size; measure text if themes change it.
 const H = 12 // label height
 const GAP = 4 // between dot and label
 
@@ -33,6 +34,7 @@ const hit = (a: Rect, b: Rect) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a
 /**
  * Greedy label placement: larger dots first, each tries right, left, above, below.
  * A label that overlaps a placed label, any dot, or leaves the box gets no entry.
+ * shortcut: O(n^2), fine to a few hundred points; use a grid index if charts grow past that.
  * shortcut: first free spot wins, not the best overall; upgrade if dense charts need fewer omissions.
  */
 export function placeLabels(items: LabelItem[], box: LabelBox): Map<string, LabelSpot> {
