@@ -105,7 +105,8 @@ function scale(vals: number[], axis: PfScatterAxis): { lo: number; hi: number; t
   const t = niceTicks(dlo, dhi)
   const lo = axis.min ?? t[0]
   const hi = axis.max === undefined ? t[t.length - 1] : dhi
-  return { lo, hi, ticks: t.filter((v) => v >= lo && v <= hi) }
+  const ticks = t.filter((v) => v >= lo && v <= hi)
+  return { lo, hi, ticks: ticks.length < 2 ? [lo, hi] : ticks } // a window under the tick precision keeps its bounds
 }
 
 function defaultFormat(v: number, ticks: number[]): string {

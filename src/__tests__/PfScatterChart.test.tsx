@@ -330,6 +330,21 @@ describe('ticks and axis room', () => {
     expect(t[t.length - 1]).toBeGreaterThanOrEqual(54.33)
   })
 
+  it('a narrow fixed window still gets its bounds as ticks', () => {
+    // A window below the 12-digit tick precision rounds every tick to one value, so none survive the filter.
+    const lo = 486623.3107073683
+    const hi = 486623.3107073742
+    const fmt = vi.fn((v: number) => v.toFixed(2).padStart(2))
+    const { container } = setup({
+      points: [{ id: 'a', x: lo, y: 5.21 }, { id: 'b', x: hi, y: 5.28 }],
+      xAxis: { label: 'Width', min: lo, max: hi, format: fmt },
+      yAxis: { label: 'Height', min: lo, max: hi },
+    })
+    expect(fmt.mock.calls.map((c) => c[0])).toEqual(expect.arrayContaining([lo, hi]))
+    expect(container.textContent).not.toMatch(/NaN|undefined/)
+    expect(screen.getAllByRole('button')).toHaveLength(2)
+  })
+
   it('no tick label has more than the step decimals', () => {
     const { container } = setup(ranged)
     expect(container.textContent).not.toMatch(/\d+\.\d{3}/)
