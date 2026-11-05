@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { usePfChartTheme } from '../usePfChartTheme'
 import { niceTicks } from '../niceTicks'
+import { placeLabels } from '../placeLabels'
 
 export type PfScatterTone = 'ok' | 'warn' | 'bad' | 'neutral'
 
@@ -36,6 +37,8 @@ export interface PfScatterChartProps<T> {
   getY(p: T): number | null
   /** Bubble area value; null or omitted gives the default size. */
   getSize?(p: T): number | null
+  /** Text drawn beside the dot when there is room; null or omitted draws none (the dot keeps its tooltip and accessible name). */
+  getPointLabel?(p: T): string | null
   /** Tone, default 'neutral'. Drawn as colour plus shape plus a hidden word. */
   getTone?(p: T): PfScatterTone
   /** Dashed outline when true (for example, not yet explored). */
@@ -65,8 +68,8 @@ const CHAR_W = 6.5 // rough px per tick label character
 const TITLE_ROOM = 20 // rotated y title plus its gap
 
 const R_DEFAULT = 6
-const R_MIN = 4
-const R_MAX = 16
+const R_MIN = 5
+const R_MAX = 22
 // shortcut: flip threshold assumes a tooltip under ~48px tall, upgrade by measuring the tooltip
 const TIP_FLIP_Y = 48
 
@@ -83,8 +86,8 @@ function clamp(v: number, lo: number, hi: number): number {
 
 // Ticks extend the data range to round values; a fixed min or max wins and drops ticks beyond it.
 function scale(vals: number[], axis: PfScatterAxis): { lo: number; hi: number; ticks: number[] } {
-  const dlo = axis.min ?? Math.min(...vals)
-  const max = axis.max ?? Math.max(...vals)
+  const dlo = axis.min ?? vals.reduce((m, v) => Math.min(m, v), Infinity)
+  const max = axis.max ?? vals.reduce((m, v) => Math.max(m, v), -Infinity)
   const dhi = max > dlo ? max : dlo + 1 // a span even for equal values or a min above max
   const t = niceTicks(dlo, dhi)
   const lo = axis.min ?? t[0]
@@ -110,6 +113,7 @@ export function PfScatterChart<T>({
   getX,
   getY,
   getSize,
+  getPointLabel,
   getTone,
   getDashed,
   xAxis,
@@ -169,12 +173,14 @@ export function PfScatterChart<T>({
     const s = getSize?.(p) ?? null
     return s !== null && Number.isFinite(s) && s > 0 ? s : null
   }
-  const maxSize = drawable.reduce((m, d) => Math.max(m, validSize(d.p) ?? 0), 0)
-  // Area-proportional radius.
+  const sizes = drawable.flatMap((d) => validSize(d.p) ?? [])
+  const minSize = sizes.reduce((m, v) => Math.min(m, v), Infinity)
+  const maxSize = sizes.reduce((m, v) => Math.max(m, v), -Infinity)
+  // Area-proportional radius between the observed min and max; equal or missing sizes give the default.
   const radius = (p: T) => {
     const s = validSize(p)
-    if (s === null || maxSize === 0) return R_DEFAULT
-    return R_MIN + Math.sqrt(s / maxSize) * (R_MAX - R_MIN)
+    if (s === null || maxSize === minSize) return R_DEFAULT
+    return Math.sqrt(R_MIN ** 2 + ((s - minSize) / (maxSize - minSize)) * (R_MAX ** 2 - R_MIN ** 2))
   }
 
   // shortcut: out-of-range points are drawn on the plot edge (the tooltip shows the real value), upgrade if callers need an off-scale marker.
@@ -192,6 +198,11 @@ export function PfScatterChart<T>({
     const l = renderLabel?.(p)
     return typeof l === 'string' || typeof l === 'number' ? String(l) : getId(p)
   }
+  const texts = placed.map((d) => getPointLabel?.(d.p) ?? null)
+  const spots = placeLabels(
+    placed.map((d, i) => ({ id: String(i), px: d.px, py: d.py, r: d.r, w: (texts[i]?.length ?? 0) * CHAR_W })),
+    { x0: left, y0: M.top, x1: left + pw, y1: M.top + ph },
+  )
   const select = (id: string) => onSelect?.(id)
   const hoveredPoint = hovered === null ? null : placed.find((d) => getId(d.p) === hovered)
   const gap = (hoveredPoint?.r ?? 0) + 6 // tooltip offset from the marker edge
@@ -267,6 +278,12 @@ export function PfScatterChart<T>({
             >
               {tone.shape === 'circle' ? <circle r={r} {...shapeCommon} /> : <polygon {...shapeProps(tone.shape, r)} {...shapeCommon} />}
             </g>
+          )
+        })}
+        {placed.map((_, i) => {
+          const s = spots.get(String(i))
+          return s && (
+            <text key={i} data-label x={s.x} y={s.y} textAnchor={s.anchor} dominantBaseline="central" fill={theme.textColor} pointerEvents="none" aria-hidden="true">{texts[i]}</text>
           )
         })}
       </svg>

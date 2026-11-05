@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { PfScatterChart, type PfScatterChartProps } from '../components/PfScatterChart'
 import { niceTicks } from '../niceTicks'
+import { placeLabels } from '../placeLabels'
 
 interface P { id: string; x: number | null; y: number | null; r?: number | null; tone?: 'ok' | 'warn' | 'bad' | 'neutral'; dashed?: boolean }
 
@@ -352,7 +353,7 @@ describe('ticks and axis room', () => {
     const { container } = setup()
     const y = (t: Element) => Number(t.getAttribute('y'))
     const title = texts(container).find((t) => t.textContent === 'Width')!
-    const ticks = texts(container).filter((t) => t.getAttribute('text-anchor') === 'middle' && t !== title)
+    const ticks = texts(container).filter((t) => t.getAttribute('text-anchor') === 'middle' && t !== title && t.getAttribute('transform') === null && /^\d+$/.test(t.textContent ?? ''))
     expect(ticks.length).toBeGreaterThan(0)
     for (const t of ticks) expect(y(title)).toBeGreaterThan(y(t) + 12)
   })
@@ -363,5 +364,64 @@ describe('ticks and axis room', () => {
       expect(container.innerHTML).not.toMatch(/NaN|Infinity/)
       expect(texts(container).length).toBeGreaterThan(3)
     }
+  })
+
+  describe('point labels and size scaling', () => {
+    const labelTexts = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-label]'))
+    const lbl = (p: P) => p.id.toUpperCase()
+    const box = { x0: 0, y0: 0, x1: 200, y1: 100 }
+
+    it('draws a label beside each dot that has room', () => {
+      const { container } = setup({ getPointLabel: lbl })
+      expect(labelTexts(container).map((t) => t.textContent)).toEqual(['A', 'B', 'C'])
+      expect(screen.getAllByRole('button')).toHaveLength(3)
+    })
+
+    it('two dots at the same spot: the second label is omitted, both dots stay buttons', () => {
+      const items = [{ id: 'a', px: 10, py: 50, r: 6, w: 40 }, { id: 'b', px: 10, py: 50, r: 6, w: 40 }]
+      // Box leaves room only to the right of the dots.
+      const m = placeLabels(items, { x0: 9, y0: 44, x1: 200, y1: 56 })
+      expect(m.has('a')).toBe(true)
+      expect(m.has('b')).toBe(false)
+      const { container } = setup({ points: [{ id: 'a', x: 5, y: 5 }, { id: 'b', x: 5, y: 5 }], getPointLabel: lbl })
+      expect(screen.getAllByRole('button')).toHaveLength(2)
+      expect(labelTexts(container).length).toBeLessThanOrEqual(2)
+    })
+
+    it('a label never leaves the plot box', () => {
+      const m = placeLabels([{ id: 'a', px: 190, py: 50, r: 6, w: 40 }], box)
+      expect(m.get('a')).toMatchObject({ anchor: 'end' })
+      const { container } = setup({ points: [{ id: 'a', x: 10, y: 5 }, { id: 'z', x: 0, y: 0 }], getPointLabel: lbl })
+      const a = labelTexts(container).find((t) => t.textContent === 'A')!
+      expect(a.getAttribute('text-anchor')).toBe('end')
+    })
+
+    it('null label draws nothing', () => {
+      const { container } = setup({ getPointLabel: () => null })
+      expect(labelTexts(container)).toHaveLength(0)
+    })
+
+    it('placeLabels is deterministic', () => {
+      const items = [{ id: 'a', px: 50, py: 50, r: 6, w: 30 }, { id: 'b', px: 60, py: 52, r: 9, w: 30 }, { id: 'c', px: 50, py: 50, r: 6, w: 30 }]
+      expect(placeLabels(items, box)).toEqual(placeLabels(items, box))
+    })
+
+    const r = (id: string) => Number(screen.getByRole('button', { name: new RegExp(`^${id}`) }).getAttribute('data-r'))
+
+    it('size scaling: the biggest dot is at least 3x the smallest radius', () => {
+      setup({ getSize: (p) => p.r ?? null })
+      expect(r('b') / r('a')).toBeGreaterThanOrEqual(3)
+    })
+
+    it('equal sizes give equal radii', () => {
+      setup({ getSize: () => 7 })
+      expect(r('a')).toBe(r('b'))
+      expect(r('b')).toBe(r('c'))
+    })
+
+    it('a point with no size keeps the default radius', () => {
+      setup({ getSize: (p) => (p.id === 'c' ? null : p.r ?? null) })
+      expect(r('c')).toBe(6)
+    })
   })
 })
