@@ -114,6 +114,14 @@ describe('PfScatterChart', () => {
     expect(shape('b').getAttribute('stroke-dasharray')).toBeNull()
   })
 
+  it('draws a ring (no fill, tone stroke) when getHollow', () => {
+    setup({ getHollow: (p) => p.id === 'a', getTone: () => 'bad' })
+    const shape = (id: string) => screen.getByRole('button', { name: new RegExp(`^${id}`) }).querySelector('[data-shape]')!
+    expect(shape('a').getAttribute('fill-opacity')).toBe('0')
+    expect(shape('a').getAttribute('stroke')).toBe(shape('b').getAttribute('stroke'))
+    expect(shape('b').getAttribute('fill-opacity')).toBe('0.6')
+  })
+
   it('scales radius with getSize and uses a default for null', () => {
     setup({ getSize: (p) => p.r ?? null })
     const r = (id: string) => Number(screen.getByRole('button', { name: new RegExp(`^${id}`) }).getAttribute('data-r'))
@@ -462,6 +470,13 @@ describe('ticks and axis room', () => {
       const sw = screen.getByTestId('chart-key').querySelectorAll('[data-swatch]')
       expect(sw[0].getAttribute('stroke-dasharray')).toBeNull()
       expect(sw[1].getAttribute('stroke-dasharray')).toBeTruthy()
+    })
+
+    it('a hollow item has a ring swatch', () => {
+      setup({ legend: [{ label: 'ring', tone: 'ok' as const, hollow: true }, ...legend] })
+      const sw = screen.getByTestId('chart-key').querySelectorAll('[data-swatch]')
+      expect(sw[0].getAttribute('fill-opacity')).toBe('0')
+      expect(sw[1].getAttribute('fill-opacity')).toBe('0.6')
     })
 
     it('note renders after the swatches', () => {

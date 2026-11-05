@@ -32,6 +32,8 @@ export interface PfScatterLegendItem {
   tone: PfScatterTone
   /** Dashed swatch outline, matching dashed points. */
   dashed?: boolean
+  /** Ring swatch (no fill), matching hollow points. */
+  hollow?: boolean
 }
 
 export interface PfScatterChartProps<T> {
@@ -51,6 +53,8 @@ export interface PfScatterChartProps<T> {
   getTone?(p: T): PfScatterTone
   /** Dashed outline when true (for example, not yet explored). */
   getDashed?(p: T): boolean
+  /** Ring (no fill, tone-colour stroke) when true. */
+  getHollow?(p: T): boolean
   xAxis: PfScatterAxis
   yAxis: PfScatterAxis
   /** Id of the selected point (marked with aria-pressed). Without `onSelect` points are not buttons: they are images, focusable only when `renderTooltip` is given. */
@@ -130,6 +134,7 @@ export function PfScatterChart<T>({
   getPointLabel,
   getTone,
   getDashed,
+  getHollow,
   xAxis,
   yAxis,
   selectedId,
@@ -264,7 +269,7 @@ export function PfScatterChart<T>({
           const shapeCommon = {
             'data-shape': tone.shape,
             fill: tone.color,
-            fillOpacity: 0.6,
+            fillOpacity: getHollow?.(p) ? 0 : 0.6,
             stroke: tone.color,
             strokeWidth: selected ? 3 : 1.5,
             strokeDasharray: getDashed?.(p) ? '3 2' : undefined,
@@ -325,7 +330,7 @@ export function PfScatterChart<T>({
         <div data-testid="chart-key" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 16px', marginTop: 4, fontSize: theme.fontSize, color: theme.textColor }}>
           {legend?.map((it) => {
             const tone = TONE[it.tone]
-            const common = { 'data-swatch': '', fill: tone.color, fillOpacity: 0.6, stroke: tone.color, strokeWidth: 1.5, strokeDasharray: it.dashed ? '3 2' : undefined }
+            const common = { 'data-swatch': '', fill: tone.color, fillOpacity: it.hollow ? 0 : 0.6, stroke: tone.color, strokeWidth: 1.5, strokeDasharray: it.dashed ? '3 2' : undefined }
             return (
               <span key={it.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <svg width={16} height={16} viewBox="-8 -8 16 16" aria-hidden="true">
