@@ -33,4 +33,6 @@ const items: Item[] = [
 />
 ```
 
+Ticks are round values (steps of 1, 2, 2.5 or 5 times a power of ten) that extend the data range unless the axis sets `min` or `max`; without `format` a tick shows only the decimals its step needs.
+
 Every drawn point is a focusable button (Enter or Space selects) when `onSelect` is given; without it points are non-interactive images, focusable only when `renderTooltip` is given. Tone is shown by colour, shape and a hidden word.

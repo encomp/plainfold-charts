@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { PfScatterChart, type PfScatterChartProps } from '../components/PfScatterChart'
+import { niceTicks } from '../niceTicks'
 
 interface P { id: string; x: number | null; y: number | null; r?: number | null; tone?: 'ok' | 'warn' | 'bad' | 'neutral'; dashed?: boolean }
 
@@ -313,5 +314,54 @@ describe('PfScatterChart', () => {
       unmount()
       expect(disconnect).toHaveBeenCalled()
     })
+  })
+})
+
+describe('ticks and axis room', () => {
+  const texts = (c: HTMLElement) => Array.from(c.querySelectorAll('svg text'))
+  const ranged = { points: [{ id: 'a', x: 37.335, y: 1 }, { id: 'b', x: 54.33, y: 9 }] }
+
+  it('niceTicks gives round steps', () => {
+    expect(niceTicks(0, 4240)).toEqual([0, 1000, 2000, 3000, 4000, 5000])
+    const t = niceTicks(37.335, 54.33)
+    expect(t.every((v) => v % 2.5 === 0)).toBe(true)
+    expect(t[0]).toBeLessThanOrEqual(37.335)
+    expect(t[t.length - 1]).toBeGreaterThanOrEqual(54.33)
+  })
+
+  it('no tick label has more than the step decimals', () => {
+    const { container } = setup(ranged)
+    expect(container.textContent).not.toMatch(/\d+\.\d{3}/)
+  })
+
+  it('a fixed min and max are kept', () => {
+    const { container } = setup({ xAxis: { label: 'Width', min: 0, max: 100 } })
+    const xs = texts(container).filter((t) => t.getAttribute('text-anchor') === 'middle' && /^\d+$/.test(t.textContent!))
+    expect(xs[0].textContent).toBe('0')
+    expect(xs[xs.length - 1].textContent).toBe('100')
+  })
+
+  it('the last tick label stays inside the svg width', () => {
+    const { container } = setup({ xAxis: { label: 'Width', format: (v) => `${v} units` } })
+    for (const t of texts(container).filter((n) => n.getAttribute('text-anchor') === 'middle')) {
+      expect(Number(t.getAttribute('x')) + (t.textContent!.length * 6.5) / 2).toBeLessThanOrEqual(600)
+    }
+  })
+
+  it('axis title does not overlap tick labels', () => {
+    const { container } = setup()
+    const y = (t: Element) => Number(t.getAttribute('y'))
+    const title = texts(container).find((t) => t.textContent === 'Width')!
+    const ticks = texts(container).filter((t) => t.getAttribute('text-anchor') === 'middle' && t !== title)
+    expect(ticks.length).toBeGreaterThan(0)
+    for (const t of ticks) expect(y(title)).toBeGreaterThan(y(t) + 12)
+  })
+
+  it('a single point or equal values still render ticks', () => {
+    for (const points of [[{ id: 'a', x: 5, y: 5 }], [{ id: 'a', x: 5, y: 5 }, { id: 'b', x: 5, y: 5 }]]) {
+      const { container } = setup({ points })
+      expect(container.innerHTML).not.toMatch(/NaN|Infinity/)
+      expect(texts(container).length).toBeGreaterThan(3)
+    }
   })
 })

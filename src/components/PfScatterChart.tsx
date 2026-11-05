@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { usePfChartTheme } from '../usePfChartTheme'
+import { niceTicks } from '../niceTicks'
 
 export type PfScatterTone = 'ok' | 'warn' | 'bad' | 'neutral'
 
@@ -59,13 +60,15 @@ export interface PfScatterChartProps<T> {
 }
 
 const FALLBACK_W = 600 // used where ResizeObserver or layout is unavailable (jsdom)
-const M = { top: 16, right: 20, bottom: 44, left: 56 }
+const M = { top: 16, bottom: 56 }
+const CHAR_W = 6.5 // rough px per tick label character
+const TITLE_ROOM = 20 // rotated y title plus its gap
+
 const R_DEFAULT = 6
 const R_MIN = 4
 const R_MAX = 16
 // shortcut: flip threshold assumes a tooltip under ~48px tall, upgrade by measuring the tooltip
 const TIP_FLIP_Y = 48
-const TICKS = 5
 
 const TONE: Record<PfScatterTone, { color: string; shape: 'circle' | 'triangle' | 'diamond'; word: string }> = {
   ok: { color: 'var(--pf-positive, #22c55e)', shape: 'circle', word: 'good' },
@@ -74,27 +77,26 @@ const TONE: Record<PfScatterTone, { color: string; shape: 'circle' | 'triangle' 
   neutral: { color: 'var(--pf-accent, #3b82f6)', shape: 'circle', word: '' },
 }
 
-function domain(vals: number[], axis: PfScatterAxis): [number, number] {
-  let lo = axis.min ?? vals.reduce((a, b) => Math.min(a, b))
-  let hi = axis.max ?? vals.reduce((a, b) => Math.max(a, b))
-  if (axis.min === undefined && axis.max === undefined) {
-    const pad = (hi - lo) * 0.05 || 1
-    lo -= pad
-    hi += pad
-  } else if (hi <= lo) hi = lo + 1
-  return [lo, hi]
-}
-
 function clamp(v: number, lo: number, hi: number): number {
   return hi < lo ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v))
 }
 
-function ticks([lo, hi]: [number, number]): number[] {
-  return Array.from({ length: TICKS }, (_, i) => lo + ((hi - lo) * i) / (TICKS - 1))
+// Ticks extend the data range to round values; a fixed min or max wins and drops ticks beyond it.
+function scale(vals: number[], axis: PfScatterAxis): { lo: number; hi: number; ticks: number[] } {
+  const dlo = axis.min ?? Math.min(...vals)
+  const max = axis.max ?? Math.max(...vals)
+  const dhi = max > dlo ? max : dlo + 1 // a span even for equal values or a min above max
+  const t = niceTicks(dlo, dhi)
+  const lo = axis.min ?? t[0]
+  const hi = axis.max === undefined ? t[t.length - 1] : dhi
+  return { lo, hi, ticks: t.filter((v) => v >= lo && v <= hi) }
 }
 
-function defaultFormat(v: number): string {
-  return String(Math.round(v * 100) / 100)
+function defaultFormat(v: number, ticks: number[]): string {
+  const step = ticks[1] - ticks[0]
+  let d = 0
+  while (d < 6 && Math.abs(Math.round(step * 10 ** d) - step * 10 ** d) > 1e-9) d++
+  return v.toFixed(d)
 }
 
 function shapeProps(shape: 'circle' | 'triangle' | 'diamond', r: number) {
@@ -150,14 +152,18 @@ export function PfScatterChart<T>({
     return <div ref={wrapRef} data-testid={testId}>{emptyState}</div>
   }
 
-  const [x0, x1] = domain(drawable.map((d) => d.x), xAxis)
-  const [y0, y1] = domain(drawable.map((d) => d.y), yAxis)
-  const pw = Math.max(width - M.left - M.right, 1)
+  const xs = scale(drawable.map((d) => d.x), xAxis)
+  const ys = scale(drawable.map((d) => d.y), yAxis)
+  const { lo: x0, hi: x1 } = xs
+  const { lo: y0, hi: y1 } = ys
+  const fx = xAxis.format ?? ((v: number) => defaultFormat(v, xs.ticks))
+  const fy = yAxis.format ?? ((v: number) => defaultFormat(v, ys.ticks))
+  const left = Math.max(56, Math.max(...ys.ticks.map((t) => fy(t).length)) * CHAR_W + 6 + TITLE_ROOM)
+  const right = Math.max(20, (fx(xs.ticks[xs.ticks.length - 1]).length * CHAR_W) / 2 + 2)
+  const pw = Math.max(width - left - right, 1)
   const ph = height - M.top - M.bottom
-  const sx = (v: number) => M.left + ((v - x0) / (x1 - x0)) * pw
+  const sx = (v: number) => left + ((v - x0) / (x1 - x0)) * pw
   const sy = (v: number) => M.top + ph - ((v - y0) / (y1 - y0)) * ph
-  const fx = xAxis.format ?? defaultFormat
-  const fy = yAxis.format ?? defaultFormat
 
   const validSize = (p: T): number | null => {
     const s = getSize?.(p) ?? null
@@ -177,7 +183,7 @@ export function PfScatterChart<T>({
     return {
       ...d,
       r,
-      px: clamp(sx(d.x), M.left + r, M.left + pw - r),
+      px: clamp(sx(d.x), left + r, left + pw - r),
       py: clamp(sy(d.y), M.top + r, M.top + ph - r),
     }
   })
@@ -195,7 +201,7 @@ export function PfScatterChart<T>({
       <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="group" aria-label={`${yAxis.label} by ${xAxis.label}`} style={{ display: 'block', fontSize: theme.fontSize, fontFamily: theme.tooltip.container.fontFamily }}>
         <defs>
           <clipPath id={clipId}>
-            <rect x={M.left} y={M.top} width={pw} height={ph} />
+            <rect x={left} y={M.top} width={pw} height={ph} />
           </clipPath>
         </defs>
         <g clipPath={`url(#${clipId})`}>
@@ -210,19 +216,19 @@ export function PfScatterChart<T>({
             )
           })}
         </g>
-        {ticks([x0, x1]).map((t) => (
+        {xs.ticks.map((t) => (
           <g key={`x${t}`}>
             <line x1={sx(t)} x2={sx(t)} y1={M.top} y2={M.top + ph} stroke={theme.grid.line.stroke} />
             <text x={sx(t)} y={M.top + ph + 16} textAnchor="middle" fill={theme.axis.ticks.text.fill}>{fx(t)}</text>
           </g>
         ))}
-        {ticks([y0, y1]).map((t) => (
+        {ys.ticks.map((t) => (
           <g key={`y${t}`}>
-            <line x1={M.left} x2={M.left + pw} y1={sy(t)} y2={sy(t)} stroke={theme.grid.line.stroke} />
-            <text x={M.left - 6} y={sy(t) + 4} textAnchor="end" fill={theme.axis.ticks.text.fill}>{fy(t)}</text>
+            <line x1={left} x2={left + pw} y1={sy(t)} y2={sy(t)} stroke={theme.grid.line.stroke} />
+            <text x={left - 6} y={sy(t) + 4} textAnchor="end" fill={theme.axis.ticks.text.fill}>{fy(t)}</text>
           </g>
         ))}
-        <text x={M.left + pw / 2} y={height - 6} textAnchor="middle" fill={theme.axis.legend.text.fill}>{xAxis.label}</text>
+        <text x={left + pw / 2} y={height - 6} textAnchor="middle" fill={theme.axis.legend.text.fill}>{xAxis.label}</text>
         <text transform={`translate(12 ${M.top + ph / 2}) rotate(-90)`} textAnchor="middle" fill={theme.axis.legend.text.fill}>{yAxis.label}</text>
         {placed.map(({ p, r, px, py }, i) => {
           const id = getId(p)
