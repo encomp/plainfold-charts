@@ -32,7 +32,8 @@ interface Rect { l: number; t: number; r: number; b: number }
 const hit = (a: Rect, b: Rect) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b
 
 /**
- * Greedy label placement: larger dots first, each tries right, left, above, below.
+ * Greedy label placement: larger dots first, each tries right, left, above, below (above and below
+ * slide sideways to fit inside the box).
  * A label that overlaps a placed label, any dot, or leaves the box gets no entry.
  * shortcut: O(n^2), fine to a few hundred points; use a grid index if charts grow past that.
  * shortcut: first free spot wins, not the best overall; upgrade if dense charts need fewer omissions.
@@ -51,8 +52,9 @@ export function placeLabels(items: LabelItem[], box: LabelBox): Map<string, Labe
     const spots: LabelSpot[] = [
       { x: d.px + d.r + GAP, y: d.py, anchor: 'start' },
       { x: d.px - d.r - GAP, y: d.py, anchor: 'end' },
-      { x: d.px - d.w / 2, y: d.py - d.r - GAP - H / 2, anchor: 'start' },
-      { x: d.px - d.w / 2, y: d.py + d.r + GAP + H / 2, anchor: 'start' },
+      // Above and below slide sideways to stay inside the box, so a dot at the edge keeps its label.
+      { x: Math.min(Math.max(d.px - d.w / 2, box.x0), box.x1 - d.w), y: d.py - d.r - GAP - H / 2, anchor: 'start' },
+      { x: Math.min(Math.max(d.px - d.w / 2, box.x0), box.x1 - d.w), y: d.py + d.r + GAP + H / 2, anchor: 'start' },
     ]
     for (const s of spots) {
       const l = s.anchor === 'start' ? s.x : s.x - d.w

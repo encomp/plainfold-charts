@@ -417,6 +417,16 @@ describe('ticks and axis room', () => {
       expect(labelTexts(container)).toHaveLength(2)
     })
 
+    it('a dot on the right edge keeps its label: above or below slides inside the box', () => {
+      // The dot sits on the right edge; a left neighbour blocks the left spot.
+      const m = placeLabels([{ id: 'e', px: 200, py: 50, r: 6, w: 80 }, { id: 'n', px: 170, py: 50, r: 6, w: 0 }], { x0: 0, y0: 0, x1: 200, y1: 100 })
+      const s = m.get('e')!
+      expect(s).toBeDefined()
+      expect(s.anchor).toBe('start')
+      expect(s.x + 80).toBeLessThanOrEqual(200)
+      expect(s.y === 50).toBe(false)
+    })
+
     it('a label never leaves the plot box', () => {
       const m = placeLabels([{ id: 'a', px: 190, py: 50, r: 6, w: 40 }], box)
       expect(m.get('a')).toMatchObject({ anchor: 'end' })
