@@ -100,13 +100,13 @@ const TONE: Record<PfScatterTone, { token: PfChartToken; shape: 'circle' | 'tria
   neutral: { token: '--pf-accent', shape: 'circle', word: '' },
 }
 
+const toneColor = (t: PfScatterTone) => readChartToken(TONE[t].token)
+
 function clamp(v: number, lo: number, hi: number): number {
   return hi < lo ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v))
 }
 
 // Ticks extend the data range to round values; a fixed min or max wins and drops ticks beyond it.
-const toneColor = (t: PfScatterTone) => readChartToken(TONE[t].token)
-
 function scale(vals: number[], axis: PfScatterAxis): { lo: number; hi: number; ticks: number[] } {
   const dlo = axis.min ?? vals.reduce((m, v) => Math.min(m, v), Infinity)
   const max = axis.max ?? vals.reduce((m, v) => Math.max(m, v), -Infinity)
@@ -275,8 +275,9 @@ export function PfScatterChart<T>({
         <text transform={`translate(12 ${M.top + ph / 2}) rotate(-90)`} textAnchor="middle" fill={theme.axis.legend.text.fill}>{yAxis.label}</text>
         {placed.map(({ p, r, px, py }, i) => {
           const id = getId(p)
-          const tone = TONE[getTone?.(p) ?? 'neutral']
-          const color = readChartToken(tone.token)
+          const toneKey = getTone?.(p) ?? 'neutral'
+          const tone = TONE[toneKey]
+          const color = toneColor(toneKey)
           const selected = selectedId === id
           const shapeCommon = {
             'data-shape': tone.shape,

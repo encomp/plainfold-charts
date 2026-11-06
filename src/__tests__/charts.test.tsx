@@ -1,12 +1,16 @@
+import { useEffect } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { render, act } from '@testing-library/react'
 
-const colors = vi.hoisted(() => [] as string[][])
+const seen = vi.hoisted(() => ({ colors: [] as string[][], mounts: 0 }))
 vi.mock('@nivo/heatmap', () => ({
   ResponsiveHeatMap: (p: { colors: { colors: string[] } }) => {
-    colors.push(p.colors.colors)
+    useEffect(() => {
+      seen.mounts++
+    }, [])
+    seen.colors.push(p.colors.colors)
     return null
   },
 }))
@@ -40,18 +44,24 @@ describe('theme colors', () => {
     root.style.setProperty('--pf-heat-none', '#010203')
     root.style.setProperty('--pf-heat-high', '#040506')
     render(<PfHeatmap data={[]} />)
-    expect(colors.at(-1)).toEqual(['#010203', '#040506'])
+    expect(seen.colors.at(-1)).toEqual(['#010203', '#040506'])
     await act(async () => {
       root.style.setProperty('--pf-heat-none', '#0a0b0c')
     })
-    expect(colors.at(-1)).toEqual(['#0a0b0c', '#040506'])
+    expect(seen.colors.at(-1)).toEqual(['#0a0b0c', '#040506'])
+    expect(seen.mounts).toBe(1) // repainted in place, not remounted
     root.removeAttribute('style')
   })
 
   it('no chart source contains a color literal outside defaultPalettes.ts', () => {
-    const dir = join(__dirname, '../components')
-    for (const f of readdirSync(dir).filter((n) => n.endsWith('.tsx'))) {
-      expect(readFileSync(join(dir, f), 'utf8'), f).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/)
+    const src = join(__dirname, '..')
+    const files = (readdirSync(src, { recursive: true }) as string[]).filter(
+      (f) => /\.tsx?$/.test(f) && !f.startsWith('__tests__') && f !== 'defaultPalettes.ts',
+    )
+    expect(files.length).toBeGreaterThan(5)
+    for (const f of files) {
+      const code = readFileSync(join(src, f), 'utf8').replace(/\/\*[\s\S]*?\*\/|(^|[^:])\/\/.*$/gm, '$1')
+      expect(code, f).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/)
     }
   })
 })
