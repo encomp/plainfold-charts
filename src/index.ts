@@ -1,4 +1,6 @@
-export { usePfChartTheme } from './usePfChartTheme'
+export { usePfChartTheme, readChartToken } from './usePfChartTheme'
+export { DEFAULT_DARK_PALETTE, DEFAULT_LIGHT_PALETTE } from './defaultPalettes'
+export type { PfChartToken } from './defaultPalettes'
 export type { PfChartTheme } from './usePfChartTheme'
 export { PfBarChart } from './components/PfBarChart'
 export type { PfBarChartProps } from './components/PfBarChart'
