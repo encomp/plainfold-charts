@@ -1,5 +1,5 @@
 import { ResponsiveLine } from '@nivo/line'
-import { usePfChartTheme } from '../usePfChartTheme'
+import { chartPalette, usePfChartColors, usePfChartTheme } from '../usePfChartTheme'
 
 export interface PfLineChartSeries {
   id: string
@@ -22,6 +22,7 @@ export function PfLineChart({
   'aria-label': ariaLabel,
 }: PfLineChartProps) {
   const theme = usePfChartTheme()
+  const palette = usePfChartColors()
 
   return (
     <div style={{ height }} role="img" aria-label={ariaLabel}>
@@ -29,7 +30,7 @@ export function PfLineChart({
         data={series}
         curve={curved ? 'monotoneX' : 'linear'}
         theme={theme}
-        colors={colors ?? { scheme: 'category10' }}
+        colors={colors ?? chartPalette(palette)}
         margin={{ top: 20, right: 20, bottom: 40, left: 60 }}
         enablePoints={true}
         pointSize={6}

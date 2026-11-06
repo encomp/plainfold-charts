@@ -1,5 +1,5 @@
 import { ResponsiveBar, type BarDatum } from '@nivo/bar'
-import { usePfChartTheme } from '../usePfChartTheme'
+import { chartPalette, usePfChartColors, usePfChartTheme } from '../usePfChartTheme'
 
 export interface PfBarChartProps {
   data: BarDatum[]
@@ -23,6 +23,7 @@ export function PfBarChart({
   'aria-label': ariaLabel,
 }: PfBarChartProps) {
   const theme = usePfChartTheme()
+  const palette = usePfChartColors()
   const keys = Array.isArray(yField) ? yField : [yField]
 
   return (
@@ -34,7 +35,7 @@ export function PfBarChart({
         layout={orientation === 'horizontal' ? 'horizontal' : 'vertical'}
         groupMode={stacked ? 'stacked' : 'grouped'}
         theme={theme}
-        colors={colors ?? { scheme: 'category10' }}
+        colors={colors ?? chartPalette(palette)}
         margin={{ top: 20, right: 20, bottom: 40, left: 60 }}
         padding={0.3}
         borderRadius={4}

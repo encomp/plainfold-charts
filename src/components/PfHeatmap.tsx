@@ -1,5 +1,5 @@
 import { ResponsiveHeatMap } from '@nivo/heatmap'
-import { usePfChartTheme, readChartToken } from '../usePfChartTheme'
+import { usePfChartColors, usePfChartTheme } from '../usePfChartTheme'
 
 export interface PfHeatmapData {
   id: string
@@ -19,9 +19,9 @@ export function PfHeatmap({
 }: PfHeatmapProps) {
   const theme = usePfChartTheme()
 
-  // Read in this render so the theme hook's re-render repaints the cells.
-  const heatColorMin = readChartToken('--pf-heat-none')
-  const heatColorMax = readChartToken('--pf-heat-high')
+  const colors = usePfChartColors()
+  const heatColorMin = colors['--pf-heat-none']
+  const heatColorMax = colors['--pf-heat-high']
 
   return (
     <div style={{ height }} role="img" aria-label={ariaLabel}>

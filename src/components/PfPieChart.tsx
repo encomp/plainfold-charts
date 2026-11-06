@@ -1,5 +1,5 @@
 import { ResponsivePie } from '@nivo/pie'
-import { usePfChartTheme } from '../usePfChartTheme'
+import { chartPalette, usePfChartColors, usePfChartTheme } from '../usePfChartTheme'
 
 export interface PfPieChartProps {
   data: { id: string; label?: string; value: number; [key: string]: unknown }[]
@@ -19,6 +19,7 @@ export function PfPieChart({
   'aria-label': ariaLabel,
 }: PfPieChartProps) {
   const theme = usePfChartTheme()
+  const palette = usePfChartColors()
 
   return (
     <div style={{ height }} role="img" aria-label={ariaLabel}>
@@ -26,7 +27,7 @@ export function PfPieChart({
         data={data}
         innerRadius={donut ? 0.5 : 0}
         theme={theme}
-        colors={colors ?? { scheme: 'category10' }}
+        colors={colors ?? chartPalette(palette)}
         margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
         padAngle={1}
         cornerRadius={4}

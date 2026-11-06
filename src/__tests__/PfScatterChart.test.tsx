@@ -27,6 +27,17 @@ function setup(over: Partial<PfScatterChartProps<P>> = {}) {
 }
 
 describe('PfScatterChart', () => {
+  it('hovering a point does not re-read the theme (colors resolve once per theme change)', () => {
+    const many = Array.from({ length: 300 }, (_, i): P => ({ id: `p${i}`, x: i, y: (i * 7) % 100, r: 4, tone: (['ok', 'warn', 'bad', 'neutral'] as const)[i % 4] }))
+    setup({ points: many, renderTooltip: (p) => p.id })
+    const point = screen.getByRole('button', { name: /^p150/ }) // role queries read styles themselves, so query first
+    const spy = vi.spyOn(window, 'getComputedStyle')
+    fireEvent.mouseEnter(point)
+    fireEvent.mouseLeave(point)
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
+  })
+
   it('renders one button per drawable point', () => {
     setup()
     expect(screen.getAllByRole('button')).toHaveLength(3)

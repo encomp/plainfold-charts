@@ -4,7 +4,10 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { render, act } from '@testing-library/react'
 
-const seen = vi.hoisted(() => ({ colors: [] as string[][], mounts: 0 }))
+const seen = vi.hoisted(() => ({ colors: [] as string[][], mounts: 0, series: {} as Record<string, unknown> }))
+vi.mock('@nivo/bar', () => ({ ResponsiveBar: (p: { colors: unknown }) => { seen.series.bar = p.colors; return null } }))
+vi.mock('@nivo/line', () => ({ ResponsiveLine: (p: { colors: unknown }) => { seen.series.line = p.colors; return null } }))
+vi.mock('@nivo/pie', () => ({ ResponsivePie: (p: { colors: unknown }) => { seen.series.pie = p.colors; return null } }))
 vi.mock('@nivo/heatmap', () => ({
   ResponsiveHeatMap: (p: { colors: { colors: string[] } }) => {
     useEffect(() => {
@@ -38,6 +41,20 @@ describe('chart components', () => {
 })
 
 describe('theme colors', () => {
+  it('bar, line and pie default to the theme palette, not a d3 scheme; a colors prop still wins', async () => {
+    const { PfBarChart } = await import('../components/PfBarChart')
+    const { PfLineChart } = await import('../components/PfLineChart')
+    const { PfPieChart } = await import('../components/PfPieChart')
+    const root = document.documentElement
+    const tokens = { '--pf-accent': '#000001', '--pf-positive': '#000002', '--pf-warning': '#000003', '--pf-danger': '#000004', '--pf-text-secondary': '#000005' }
+    Object.entries(tokens).forEach(([k, v]) => root.style.setProperty(k, v))
+    render(<><PfBarChart data={[]} xField="x" yField="y" /><PfLineChart data={[]} /><PfPieChart data={[]} /></>)
+    expect(seen.series).toEqual({ bar: Object.values(tokens), line: Object.values(tokens), pie: Object.values(tokens) })
+    render(<PfPieChart data={[]} colors={['#abcdef']} />)
+    expect(seen.series.pie).toEqual(['#abcdef'])
+    root.removeAttribute('style')
+  })
+
   it('PfHeatmap cells use heat-none to heat-high and repaint on a theme change', async () => {
     const { PfHeatmap } = await import('../components/PfHeatmap')
     const root = document.documentElement

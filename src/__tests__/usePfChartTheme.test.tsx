@@ -78,7 +78,38 @@ describe('usePfChartTheme', () => {
   })
 })
 
+describe('redraws only on a real change', () => {
+  it('an unrelated root style or class change does not re-render; a token change does', async () => {
+    let renders = 0
+    renderHook(() => { renders++; return usePfChartTheme() })
+    const before = renders
+    await act(async () => { root.style.setProperty('--not-a-chart-token', '1') })
+    await act(async () => { root.setAttribute('class', 'scrolled') })
+    await act(async () => { root.setAttribute('data-theme', 'same') })
+    expect(renders).toBe(before)
+    await act(async () => { root.style.setProperty('--pf-positive', '#123123') })
+    expect(renders).toBe(before + 1)
+  })
+})
+
 describe('readChartToken', () => {
+  // The same vector is in plainfold-maps pinColors.test.ts: values that parse are kept, the rest fall back.
+  it.each([
+    ['#abc', true], ['#a1b2c3', true], ['rgb(1, 2, 3)', true], ['rgba(1, 2, 3, 0.5)', true], ['rgb(1 2 3 / 50%)', true],
+    ['rgba(1, 2, 3, 0)', false], ['rgba(1, 2, 3, 0.0)', false], ['rgb(1 2 3 / 0%)', false], ['hsl(1 2% 3%)', false], ['red', false],
+  ])('%s parses: %s', (v, ok) => {
+    root.style.setProperty('--pf-border', v)
+    expect(readChartToken('--pf-border') === v).toBe(ok)
+  })
+
+  it('a transparent body with no page token reads as a light page (the white canvas shows)', () => {
+    document.body.style.backgroundColor = 'rgba(0, 0, 0, 0)'
+    expect(readChartToken('--pf-border')).toBe(DEFAULT_LIGHT_PALETTE['--pf-border'])
+    document.body.style.backgroundColor = 'rgb(10, 10, 10)'
+    expect(readChartToken('--pf-border')).toBe(DEFAULT_DARK_PALETTE['--pf-border'])
+    document.body.removeAttribute('style')
+  })
+
   it('falls back to the dark default when the page background is dark', () => {
     root.style.setProperty('--pf-bg-page', '#101010')
     expect(readChartToken('--pf-border')).toBe(DEFAULT_DARK_PALETTE['--pf-border'])

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { usePfChartTheme, readChartToken } from '../usePfChartTheme'
+import { usePfChartColors, usePfChartTheme } from '../usePfChartTheme'
 import type { PfChartToken } from '../defaultPalettes'
 import { niceTicks } from '../niceTicks'
 import { placeLabels } from '../placeLabels'
@@ -100,7 +100,6 @@ const TONE: Record<PfScatterTone, { token: PfChartToken; shape: 'circle' | 'tria
   neutral: { token: '--pf-accent', shape: 'circle', word: '' },
 }
 
-const toneColor = (t: PfScatterTone) => readChartToken(TONE[t].token)
 
 function clamp(v: number, lo: number, hi: number): number {
   return hi < lo ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v))
@@ -154,6 +153,8 @@ export function PfScatterChart<T>({
   'data-testid': testId,
 }: PfScatterChartProps<T>) {
   const theme = usePfChartTheme()
+  const colors = usePfChartColors() // resolved once per theme change, not per point or hover
+  const toneColor = (t: PfScatterTone) => colors[TONE[t].token]
   const [hovered, setHovered] = useState<string | null>(null)
   const [width, setWidth] = useState(FALLBACK_W)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -317,7 +318,7 @@ export function PfScatterChart<T>({
         {placed.map((_, i) => {
           const s = spots.get(String(i))
           return s && (
-            <text key={i} data-label x={s.x} y={s.y} textAnchor={s.anchor} dominantBaseline="central" fill={readChartToken('--pf-text-primary')} pointerEvents="none" aria-hidden="true">{texts[i]}</text>
+            <text key={i} data-label x={s.x} y={s.y} textAnchor={s.anchor} dominantBaseline="central" fill={colors['--pf-text-primary']} pointerEvents="none" aria-hidden="true">{texts[i]}</text>
           )
         })}
       </svg>
