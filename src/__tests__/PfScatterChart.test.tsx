@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { PfScatterChart, type PfScatterChartProps } from '../components/PfScatterChart'
 import { niceTicks } from '../niceTicks'
@@ -504,6 +504,70 @@ describe('ticks and axis room', () => {
     it('the key row wraps at 320px', () => {
       setup({ legend })
       expect(screen.getByTestId('chart-key').style.flexWrap).toBe('wrap')
+    })
+  })
+  describe('region tones and theme colors', () => {
+    const TOKENS = { ok: '--pf-positive', warn: '--pf-warning', bad: '--pf-danger', neutral: '--pf-accent' } as const
+    const COLORS = { '--pf-positive': '#112233', '--pf-warning': '#223344', '--pf-danger': '#334455', '--pf-accent': '#445566', '--pf-text-primary': '#556677', '--pf-text-secondary': '#667788' }
+    const region = { x0: 100, x1: 200, y0: 20, y1: 60, label: 'Zone' } as const
+    beforeEach(() => {
+      for (const [k, v] of Object.entries(COLORS)) document.documentElement.style.setProperty(k, v)
+    })
+    afterEach(() => document.documentElement.removeAttribute('style'))
+
+    it('an ok region fills with --pf-positive at 0.14 opacity', () => {
+      const { container } = setup({ regions: [{ ...region, tone: 'ok' }] })
+      const rect = container.querySelector('[data-region] rect')!
+      expect(rect.getAttribute('fill')).toBe('#112233')
+      expect(rect.getAttribute('fill-opacity')).toBe('0.14')
+    })
+
+    it('an ok region draws a dashed line on its lower edge in the positive color', () => {
+      const { container } = setup({ regions: [{ ...region, tone: 'ok' }] })
+      const rect = container.querySelector('[data-region] rect')!
+      const line = container.querySelector('[data-region] line')!
+      expect(line.getAttribute('stroke')).toBe('#112233')
+      expect(line.getAttribute('stroke-dasharray')).toBeTruthy()
+      const bottom = Number(rect.getAttribute('y')) + Number(rect.getAttribute('height'))
+      expect(Number(line.getAttribute('y1'))).toBeCloseTo(bottom)
+      expect(Number(line.getAttribute('y2'))).toBeCloseTo(bottom)
+    })
+
+    it("an ok region's label is positive, semibold, at the top right", () => {
+      const { container } = setup({ regions: [{ ...region, tone: 'ok' }] })
+      const rect = container.querySelector('[data-region] rect')!
+      const text = screen.getByText('Zone')
+      expect(text.getAttribute('fill')).toBe('#112233')
+      expect(text.getAttribute('font-weight')).toBe('600')
+      expect(text.getAttribute('text-anchor')).toBe('end')
+      expect(Number(text.getAttribute('x'))).toBeCloseTo(Number(rect.getAttribute('x')) + Number(rect.getAttribute('width')) - 4)
+    })
+
+    it("a region without a tone keeps today's look", () => {
+      const { container } = setup({ regions: [region] })
+      expect(container.querySelector('[data-region] rect')!.getAttribute('fill-opacity')).toBe('0.1')
+      expect(container.querySelector('[data-region] line')).toBeNull()
+      expect(screen.getByText('Zone').getAttribute('fill')).toBe('#667788')
+    })
+
+    it.each(['warn', 'bad', 'neutral'] as const)('a %s region uses its token color', (tone) => {
+      const { container } = setup({ regions: [{ ...region, tone }] })
+      expect(container.querySelector('[data-region] rect')!.getAttribute('fill')).toBe(COLORS[TOKENS[tone]])
+    })
+
+    it('point labels use the primary text color', () => {
+      const { container } = setup({ getPointLabel: (p) => p.id })
+      expect(container.querySelector('[data-label]')!.getAttribute('fill')).toBe('#556677')
+    })
+
+    it('points repaint when the theme changes', async () => {
+      setup({ getTone: () => 'ok' })
+      const dot = () => screen.getAllByRole('button')[0].firstElementChild!
+      expect(dot().getAttribute('fill')).toBe('#112233')
+      await act(async () => {
+        document.documentElement.style.setProperty('--pf-positive', '#778899')
+      })
+      expect(dot().getAttribute('fill')).toBe('#778899')
     })
   })
 })

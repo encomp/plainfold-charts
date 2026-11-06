@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { usePfChartTheme } from '../usePfChartTheme'
+import { usePfChartTheme, readChartToken } from '../usePfChartTheme'
+import type { PfChartToken } from '../defaultPalettes'
 import { niceTicks } from '../niceTicks'
 import { placeLabels } from '../placeLabels'
 
@@ -24,6 +25,8 @@ export interface PfScatterRegion {
   y1: number
   /** Text drawn in the shaded rectangle. */
   label: string
+  /** Tints the fill, dashes the lower edge and colours the label top right; untoned regions stay neutral grey. */
+  tone?: PfScatterTone
 }
 
 export interface PfScatterLegendItem {
@@ -90,11 +93,11 @@ const R_MAX = 22
 // shortcut: flip threshold assumes a tooltip under ~48px tall, upgrade by measuring the tooltip
 const TIP_FLIP_Y = 48
 
-const TONE: Record<PfScatterTone, { color: string; shape: 'circle' | 'triangle' | 'diamond'; word: string }> = {
-  ok: { color: 'var(--pf-positive, #22c55e)', shape: 'circle', word: 'good' },
-  warn: { color: 'var(--pf-warning, #f59e0b)', shape: 'triangle', word: 'warning' },
-  bad: { color: 'var(--pf-danger, #ef4444)', shape: 'diamond', word: 'problem' },
-  neutral: { color: 'var(--pf-accent, #3b82f6)', shape: 'circle', word: '' },
+const TONE: Record<PfScatterTone, { token: PfChartToken; shape: 'circle' | 'triangle' | 'diamond'; word: string }> = {
+  ok: { token: '--pf-positive', shape: 'circle', word: 'good' },
+  warn: { token: '--pf-warning', shape: 'triangle', word: 'warning' },
+  bad: { token: '--pf-danger', shape: 'diamond', word: 'problem' },
+  neutral: { token: '--pf-accent', shape: 'circle', word: '' },
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -102,6 +105,8 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 // Ticks extend the data range to round values; a fixed min or max wins and drops ticks beyond it.
+const toneColor = (t: PfScatterTone) => readChartToken(TONE[t].token)
+
 function scale(vals: number[], axis: PfScatterAxis): { lo: number; hi: number; ticks: number[] } {
   const dlo = axis.min ?? vals.reduce((m, v) => Math.min(m, v), Infinity)
   const max = axis.max ?? vals.reduce((m, v) => Math.max(m, v), -Infinity)
@@ -240,10 +245,16 @@ export function PfScatterChart<T>({
           {(regions ?? []).map((r, i) => {
             const rx = Math.min(sx(r.x0), sx(r.x1))
             const ry = Math.min(sy(r.y0), sy(r.y1))
+            const rw = Math.abs(sx(r.x1) - sx(r.x0))
+            const rh = Math.abs(sy(r.y1) - sy(r.y0))
+            const rc = r.tone && toneColor(r.tone)
             return (
               <g key={i} data-region>
-                <rect x={rx} y={ry} width={Math.abs(sx(r.x1) - sx(r.x0))} height={Math.abs(sy(r.y1) - sy(r.y0))} fill={theme.textColor} fillOpacity={0.1} />
-                <text x={rx + 4} y={ry + 12} fill={theme.textColor}>{r.label}</text>
+                <rect x={rx} y={ry} width={rw} height={rh} fill={rc || theme.textColor} fillOpacity={rc ? 0.14 : 0.1} />
+                {rc && <line x1={rx} x2={rx + rw} y1={ry + rh} y2={ry + rh} stroke={rc} strokeDasharray="4 3" />}
+                {rc
+                  ? <text x={rx + rw - 4} y={ry + 12} textAnchor="end" fontWeight={600} fill={rc}>{r.label}</text>
+                  : <text x={rx + 4} y={ry + 12} fill={theme.textColor}>{r.label}</text>}
               </g>
             )
           })}
@@ -265,12 +276,13 @@ export function PfScatterChart<T>({
         {placed.map(({ p, r, px, py }, i) => {
           const id = getId(p)
           const tone = TONE[getTone?.(p) ?? 'neutral']
+          const color = readChartToken(tone.token)
           const selected = selectedId === id
           const shapeCommon = {
             'data-shape': tone.shape,
-            fill: tone.color,
+            fill: color,
             fillOpacity: getHollow?.(p) ? 0 : 0.6,
-            stroke: tone.color,
+            stroke: color,
             strokeWidth: selected ? 3 : 1.5,
             strokeDasharray: getDashed?.(p) ? '3 2' : undefined,
           }
@@ -304,7 +316,7 @@ export function PfScatterChart<T>({
         {placed.map((_, i) => {
           const s = spots.get(String(i))
           return s && (
-            <text key={i} data-label x={s.x} y={s.y} textAnchor={s.anchor} dominantBaseline="central" fill={theme.textColor} pointerEvents="none" aria-hidden="true">{texts[i]}</text>
+            <text key={i} data-label x={s.x} y={s.y} textAnchor={s.anchor} dominantBaseline="central" fill={readChartToken('--pf-text-primary')} pointerEvents="none" aria-hidden="true">{texts[i]}</text>
           )
         })}
       </svg>
@@ -330,7 +342,8 @@ export function PfScatterChart<T>({
         <div data-testid="chart-key" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 16px', marginTop: 4, fontSize: theme.fontSize, color: theme.textColor }}>
           {legend?.map((it) => {
             const tone = TONE[it.tone]
-            const common = { 'data-swatch': '', fill: tone.color, fillOpacity: it.hollow ? 0 : 0.6, stroke: tone.color, strokeWidth: 1.5, strokeDasharray: it.dashed ? '3 2' : undefined }
+            const color = toneColor(it.tone)
+            const common = { 'data-swatch': '', fill: color, fillOpacity: it.hollow ? 0 : 0.6, stroke: color, strokeWidth: 1.5, strokeDasharray: it.dashed ? '3 2' : undefined }
             return (
               <span key={it.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <svg width={16} height={16} viewBox="-8 -8 16 16" aria-hidden="true">
