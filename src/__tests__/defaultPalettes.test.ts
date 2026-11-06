@@ -18,7 +18,7 @@ describe('default palettes', () => {
     ['dark', DEFAULT_DARK_PALETTE],
     ['light', DEFAULT_LIGHT_PALETTE],
   ])('%s palette passes 4.5:1 for text on surface', (_n, p) => {
-    for (const t of ['--pf-text-primary', '--pf-text-secondary', '--pf-text-muted'] as const) {
+    for (const t of ['--pf-text-primary', '--pf-text-secondary'] as const) {
       expect(ratio(p[t], p['--pf-bg-surface'])).toBeGreaterThanOrEqual(4.5)
     }
   })

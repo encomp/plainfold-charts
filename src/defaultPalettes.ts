@@ -3,7 +3,6 @@ export type PfChartToken =
   | '--pf-border'
   | '--pf-text-primary'
   | '--pf-text-secondary'
-  | '--pf-text-muted'
   | '--pf-positive'
   | '--pf-warning'
   | '--pf-danger'
@@ -18,7 +17,6 @@ export const DEFAULT_DARK_PALETTE: Record<PfChartToken, string> = {
   '--pf-border': '#343a46',
   '--pf-text-primary': '#f3f4f6',
   '--pf-text-secondary': '#b4bac5',
-  '--pf-text-muted': '#9aa1ae',
   '--pf-positive': '#4ade80',
   '--pf-warning': '#fbbf24',
   '--pf-danger': '#f87171',
@@ -34,7 +32,6 @@ export const DEFAULT_LIGHT_PALETTE: Record<PfChartToken, string> = {
   '--pf-border': '#d0d5dd',
   '--pf-text-primary': '#1a1d23',
   '--pf-text-secondary': '#4a5160',
-  '--pf-text-muted': '#5b6372',
   '--pf-positive': '#15803d',
   '--pf-warning': '#b45309',
   '--pf-danger': '#b91c1c',

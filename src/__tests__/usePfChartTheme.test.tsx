@@ -37,6 +37,13 @@ describe('usePfChartTheme', () => {
     expect(result.current.grid.line.stroke).toBe('#123456')
   })
 
+  it('draws ticks and axis titles in the secondary text token', () => {
+    root.style.setProperty('--pf-text-secondary', '#654321')
+    const { result } = renderHook(() => usePfChartTheme())
+    expect(result.current.axis.ticks.text.fill).toBe('#654321')
+    expect(result.current.axis.legend.text.fill).toBe('#654321')
+  })
+
   it('also reacts to data-theme and class changes', async () => {
     const { result } = renderHook(() => usePfChartTheme())
     const sheet = document.createElement('style')

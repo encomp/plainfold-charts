@@ -57,7 +57,7 @@ function buildTheme(): PfChartTheme {
     textColor: secondary,
     fontSize: 12,
     axis: {
-      ticks: { text: { fill: readChartToken('--pf-text-muted') } },
+      ticks: { text: { fill: secondary } },
       legend: { text: { fill: secondary } },
     },
     grid: { line: { stroke: border, strokeWidth: 1 } },
